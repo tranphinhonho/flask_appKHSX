@@ -90,14 +90,15 @@ def _translate_sql(sql):
     # Pattern 2: alias."ID" = alias."ID sản phẩm" → alias."ID" = CAST(alias."ID sản phẩm" AS INTEGER)
     # Handles FK columns like "ID sản phẩm", "ID Vai trò", "ID Chức năng chính" etc.
     # FK columns have "ID " (with space) followed by more text; PK is just "ID"
+    # Supports both unquoted aliases (sp."ID") and quoted table names ("SanPham"."ID")
     result = re.sub(
-        r'(\w+\."ID\s[^"]+")\s*=\s*(\w+\."ID")',
-        r'CAST(\1 AS INTEGER) = \2',
+        r'("?\w+"?\."ID\s[^\"]+\")(\s*=\s*)("?\w+"?\."ID")',
+        r'CAST(\1 AS INTEGER)\2\3',
         result
     )
     result = re.sub(
-        r'(\w+\."ID")\s*=\s*(\w+\."ID\s[^"]+")',
-        r'\1 = CAST(\2 AS INTEGER)',
+        r'("?\w+"?\."ID\")(\s*=\s*)("?\w+"?\."ID\s[^\"]+\")',
+        r'\1\2CAST(\3 AS INTEGER)',
         result
     )
 
