@@ -16,65 +16,77 @@ dathang_bp = Blueprint('dathang', __name__)
 @login_required
 def get_dathang_list():
     """Lấy danh sách đơn đặt hàng với phân trang, tìm kiếm, lọc theo ngày lấy"""
-    page = request.args.get('page', 1, type=int)
-    per_page = request.args.get('per_page', 20, type=int)
-    search = request.args.get('search', '').strip()
-    ngay_lay = request.args.get('ngay_lay', '').strip()
+    try:
+        page = request.args.get('page', 1, type=int)
+        per_page = request.args.get('per_page', 20, type=int)
+        search = request.args.get('search', '').strip()
+        ngay_lay = request.args.get('ngay_lay', '').strip()
 
-    col_where = {'Đã xóa': ('=', 0)}
-    if ngay_lay and ngay_lay != 'all':
-        col_where['Ngày lấy'] = ('=', ngay_lay)
+        col_where = {'Đã xóa': ('=', 0)}
+        if ngay_lay and ngay_lay != 'all':
+            col_where['Ngày lấy'] = ('=', ngay_lay)
 
-    # JOIN SanPham để lấy Code cám, Tên cám
-    joins = [{
-        'table': 'SanPham',
-        'on': {'ID sản phẩm': 'ID'},
-        'columns': ['Code cám', 'Tên cám', 'Dạng ép viên', 'Kích cỡ ép viên']
-    }]
+        # JOIN SanPham để lấy Code cám, Tên cám
+        joins = [{
+            'table': 'SanPham',
+            'on': {'ID sản phẩm': 'ID'},
+            'columns': ['Code cám', 'Tên cám', 'Dạng ép viên', 'Kích cỡ ép viên']
+        }]
 
-    search_columns = ['Mã đặt hàng', 'SanPham.Tên cám', 'SanPham.Code cám', 'Loại đặt hàng'] if search else None
+        search_columns = ['Mã đặt hàng', 'SanPham.Tên cám', 'SanPham.Code cám', 'Loại đặt hàng'] if search else None
 
-    # Get total count (without join, just base table)
-    total = db.get_total_count(
-        table_name='DatHang',
-        col_where=col_where,
-        search_value=search if search else None,
-        search_columns=['Mã đặt hàng', 'Loại đặt hàng'] if search else None
-    )
+        # Get total count (without join, just base table)
+        total = db.get_total_count(
+            table_name='DatHang',
+            col_where=col_where,
+            search_value=search if search else None,
+            search_columns=['Mã đặt hàng', 'Loại đặt hàng'] if search else None
+        )
 
-    # Get paginated data with JOIN
-    df = db.get_columns_data(
-        table_name='DatHang',
-        columns=['ID', 'ID sản phẩm', 'Mã đặt hàng', 'Loại đặt hàng', 'Số lượng',
-                 'Ngày đặt', 'Ngày lấy', 'Khách vãng lai', 'Ghi chú',
-                 'Người tạo', 'Thời gian tạo'],
-        col_where=col_where,
-        col_order={'ID': 'DESC'},
-        page_number=page,
-        rows_per_page=per_page,
-        search_value=search if search else None,
-        search_columns=['Mã đặt hàng', 'Loại đặt hàng'] if search else None,
-        joins=joins
-    )
+        # Get paginated data with JOIN
+        df = db.get_columns_data(
+            table_name='DatHang',
+            columns=['ID', 'ID sản phẩm', 'Mã đặt hàng', 'Loại đặt hàng', 'Số lượng',
+                     'Ngày đặt', 'Ngày lấy', 'Khách vãng lai', 'Ghi chú',
+                     'Người tạo', 'Thời gian tạo'],
+            col_where=col_where,
+            col_order={'ID': 'DESC'},
+            page_number=page,
+            rows_per_page=per_page,
+            search_value=search if search else None,
+            search_columns=['Mã đặt hàng', 'Loại đặt hàng'] if search else None,
+            joins=joins
+        )
 
-    data = df.to_dict('records') if not df.empty else []
+        data = df.to_dict('records') if not df.empty else []
 
-    # Rename join columns
-    for row in data:
-        row['Code cám'] = row.pop('SanPham_Code cám', '')
-        row['Tên cám'] = row.pop('SanPham_Tên cám', '')
-        row['Dạng ép viên'] = row.pop('SanPham_Dạng ép viên', '')
-        row['Kích cỡ ép viên'] = row.pop('SanPham_Kích cỡ ép viên', '')
+        # Rename join columns
+        for row in data:
+            row['Code cám'] = row.pop('SanPham_Code cám', '')
+            row['Tên cám'] = row.pop('SanPham_Tên cám', '')
+            row['Dạng ép viên'] = row.pop('SanPham_Dạng ép viên', '')
+            row['Kích cỡ ép viên'] = row.pop('SanPham_Kích cỡ ép viên', '')
 
-    total_pages = (total + per_page - 1) // per_page if total > 0 else 1
+        total_pages = (total + per_page - 1) // per_page if total > 0 else 1
 
-    return jsonify({
-        'data': data,
-        'total': total,
-        'page': page,
-        'per_page': per_page,
-        'total_pages': total_pages
-    })
+        return jsonify({
+            'data': data,
+            'total': total,
+            'page': page,
+            'per_page': per_page,
+            'total_pages': total_pages
+        })
+    except Exception as e:
+        import traceback
+        print(f"ERROR get_dathang_list: {traceback.format_exc()}")
+        return jsonify({
+            'data': [],
+            'total': 0,
+            'page': 1,
+            'per_page': 20,
+            'total_pages': 1,
+            'error': str(e)
+        })
 
 
 @dathang_bp.route('/api/dathang/ngay-lay', methods=['GET'])
