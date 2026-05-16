@@ -51,6 +51,28 @@ def create_app():
     # Init database
     db.init_db(config.DATABASE_PATH)
 
+    # Fix NULL 'Đã xóa' values (PostgreSQL tables may lack DEFAULT 0)
+    try:
+        conn = db.connect_db()
+        cursor = conn.cursor()
+        tables_with_da_xoa = [
+            'SanPham', 'DatHang', 'Plan', 'Sale', 'Packing', 'Mixer',
+            'StockOld', 'StockHomNay', 'TonBon', 'BaoBi', 'Forecast',
+            'PelletCapacity', 'PelletPlan', 'EmailImportLog', 'PackingPlan'
+        ]
+        for tbl in tables_with_da_xoa:
+            try:
+                cursor.execute(db.sql(f"UPDATE [{tbl}] SET [Đã xóa] = 0 WHERE [Đã xóa] IS NULL"))
+            except Exception:
+                try:
+                    conn.rollback()
+                except Exception:
+                    pass
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print(f"Warning: migration fix_null_da_xoa failed: {e}")
+
     # Tạo thư mục uploads nếu chưa có
     os.makedirs(config.UPLOAD_FOLDER, exist_ok=True)
 

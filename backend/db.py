@@ -686,18 +686,29 @@ def insert_data_to_table(table_name, columns_list, values_list):
         conn = connect_db()
         cursor = conn.cursor()
 
-        columns = ", ".join(_q(c) for c in columns_list)
-        placeholders = ', '.join([_ph() for _ in values_list])
+        # Auto-add 'Đã xóa' = 0 if not in columns (prevents NULL on PostgreSQL)
+        cols = list(columns_list)
+        vals = list(values_list)
+        if 'Đã xóa' not in cols:
+            # Check if column exists in table
+            table_cols = _get_column_names(cursor, table_name)
+            col_names_lower = [c.lower() for c in table_cols]
+            if 'đã xóa' in col_names_lower or 'Đã xóa' in table_cols:
+                cols.append('Đã xóa')
+                vals.append(0)
+
+        columns = ", ".join(_q(c) for c in cols)
+        placeholders = ', '.join([_ph() for _ in vals])
         query = f"INSERT INTO {_q(table_name)} ({columns}) VALUES ({placeholders})"
 
         if _db_type == 'postgres':
             # PostgreSQL: dùng RETURNING ID
             query += ' RETURNING "ID"'
-            cursor.execute(query, tuple(values_list))
+            cursor.execute(query, tuple(vals))
             result = cursor.fetchone()
             last_id = result[0] if result else None
         else:
-            cursor.execute(query, tuple(values_list))
+            cursor.execute(query, tuple(vals))
             last_id = cursor.lastrowid
 
         conn.commit()
