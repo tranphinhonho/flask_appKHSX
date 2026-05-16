@@ -15,7 +15,7 @@ def login_required(f):
         if 'username' not in session:
             if request.is_json or request.path.startswith('/api/'):
                 return jsonify({"error": "Chưa đăng nhập"}), 401
-            return redirect(url_for('main.login_page'))
+            return redirect(url_for('login_page'))
         return f(*args, **kwargs)
     return decorated_function
 
