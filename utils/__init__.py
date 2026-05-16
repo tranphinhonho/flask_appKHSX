@@ -53,6 +53,7 @@ def adapt_create_sql(sql: str, db_path: str) -> str:
     - INTEGER PRIMARY KEY AUTOINCREMENT → SERIAL PRIMARY KEY
     - [column_name] → "column_name"
     - DATETIME → TIMESTAMP
+    - Quote table name to preserve case
     """
     if not is_postgres(db_path):
         return sql
@@ -62,6 +63,13 @@ def adapt_create_sql(sql: str, db_path: str) -> str:
         r'ID\s+INTEGER\s+PRIMARY\s+KEY\s+AUTOINCREMENT',
         '"ID" SERIAL PRIMARY KEY',
         sql,
+        flags=re.IGNORECASE
+    )
+    # Quote table name: CREATE TABLE IF NOT EXISTS TableName → CREATE TABLE IF NOT EXISTS "TableName"
+    result = re.sub(
+        r'CREATE\s+TABLE\s+IF\s+NOT\s+EXISTS\s+(\w+)',
+        lambda m: f'CREATE TABLE IF NOT EXISTS "{m.group(1)}"',
+        result,
         flags=re.IGNORECASE
     )
     # [col] → "col"
