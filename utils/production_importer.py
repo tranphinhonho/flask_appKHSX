@@ -19,7 +19,7 @@ from datetime import datetime
 from typing import Dict, List, Optional
 import pandas as pd
 import re
-from utils import get_db_connection, is_postgres, q, ph
+from utils import get_db_connection, is_postgres, q, ph, adapt_create_sql
 
 
 class ProductionImporter:
@@ -56,7 +56,7 @@ class ProductionImporter:
         cursor = conn.cursor()
         
         try:
-            cursor.execute("""
+            sql = """
                 CREATE TABLE IF NOT EXISTS EmailImportLog (
                     ID INTEGER PRIMARY KEY AUTOINCREMENT,
                     TenFile TEXT NOT NULL UNIQUE,
@@ -66,10 +66,10 @@ class ProductionImporter:
                     ThoiGianImport DATETIME DEFAULT CURRENT_TIMESTAMP,
                     NguoiImport TEXT
                 )
-            """)
+            """
+            cursor.execute(adapt_create_sql(sql, self.db_path))
             conn.commit()
         except Exception:
-            # Table already exists on PostgreSQL (AUTOINCREMENT not supported)
             try:
                 conn.rollback()
             except:

@@ -20,7 +20,7 @@ from pathlib import Path
 from datetime import datetime
 from typing import Dict, List, Optional, Tuple
 import pandas as pd
-from utils import get_db_connection, is_postgres, q, ph
+from utils import get_db_connection, is_postgres, q, ph, adapt_create_sql
 
 
 class PelletCapacityImporter:
@@ -68,7 +68,7 @@ class PelletCapacityImporter:
         conn = self._get_connection()
         cursor = conn.cursor()
         
-        cursor.execute("""
+        sql = """
         CREATE TABLE IF NOT EXISTS PelletCapacity (
             ID INTEGER PRIMARY KEY AUTOINCREMENT,
             [Ngày] DATE,
@@ -85,7 +85,8 @@ class PelletCapacityImporter:
             [Người import] TEXT,
             [Đã xóa] INTEGER DEFAULT 0
         )
-        """)
+        """
+        cursor.execute(adapt_create_sql(sql, self.db_path))
         
         conn.commit()
         conn.close()

@@ -5,7 +5,9 @@ from flask import Blueprint, request, jsonify, session
 from backend.auth import login_required
 from backend import db
 from backend.utils import get_vietnam_time
+from utils import adapt_create_sql
 import pandas as pd
+import config
 
 dathang_bp = Blueprint('dathang', __name__)
 
@@ -792,7 +794,7 @@ def transfer_to_plan_save():
 
     try:
         # Ensure Plan table exists
-        cursor.execute("""
+        plan_sql = """
             CREATE TABLE IF NOT EXISTS Plan (
                 ID INTEGER PRIMARY KEY AUTOINCREMENT,
                 [ID sản phẩm] INTEGER,
@@ -806,7 +808,8 @@ def transfer_to_plan_save():
                 [Thời gian sửa] DATETIME,
                 [Đã xóa] INTEGER DEFAULT 0
             )
-        """)
+        """
+        cursor.execute(adapt_create_sql(plan_sql, config.DATABASE_PATH))
 
         # Generate Plan code
         ma_plan = db.generate_next_code('Plan', 'Mã plan', 'PL', 5)

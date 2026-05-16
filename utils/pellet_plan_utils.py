@@ -302,7 +302,9 @@ def save_pellet_plan(plan_data, ngay_plan, nguoi_tao='system'):
     cursor = conn.cursor()
     
     # Tạo bảng nếu chưa có
-    cursor.execute("""
+    from utils import adapt_create_sql
+    import config
+    plan_sql = """
         CREATE TABLE IF NOT EXISTS PelletPlan (
             ID INTEGER PRIMARY KEY AUTOINCREMENT,
             [Ngày plan] DATE,
@@ -317,7 +319,8 @@ def save_pellet_plan(plan_data, ngay_plan, nguoi_tao='system'):
             [Thời gian tạo] DATETIME,
             [Đã xóa] INTEGER DEFAULT 0
         )
-    """)
+    """
+    cursor.execute(adapt_create_sql(plan_sql, config.DATABASE_PATH))
     
     # Xóa dữ liệu cũ của ngày này
     ngay_str = ngay_plan if isinstance(ngay_plan, str) else ngay_plan.strftime('%Y-%m-%d')

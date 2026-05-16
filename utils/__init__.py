@@ -45,3 +45,28 @@ def ph(db_path: str) -> str:
         return '%s'
     else:
         return '?'
+
+
+def adapt_create_sql(sql: str, db_path: str) -> str:
+    """
+    Adapt CREATE TABLE SQL from SQLite syntax to PostgreSQL syntax.
+    - INTEGER PRIMARY KEY AUTOINCREMENT → SERIAL PRIMARY KEY
+    - [column_name] → "column_name"
+    - DATETIME → TIMESTAMP
+    """
+    if not is_postgres(db_path):
+        return sql
+    import re
+    # AUTOINCREMENT → SERIAL
+    result = re.sub(
+        r'ID\s+INTEGER\s+PRIMARY\s+KEY\s+AUTOINCREMENT',
+        '"ID" SERIAL PRIMARY KEY',
+        sql,
+        flags=re.IGNORECASE
+    )
+    # [col] → "col"
+    result = re.sub(r'\[([^\]]+)\]', r'"\1"', result)
+    # DATETIME → TIMESTAMP
+    result = re.sub(r'\bDATETIME\b', 'TIMESTAMP', result, flags=re.IGNORECASE)
+    return result
+

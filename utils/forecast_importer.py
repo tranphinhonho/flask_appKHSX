@@ -10,7 +10,7 @@ from datetime import datetime
 from typing import Dict, List, Optional
 import pandas as pd
 import re
-from utils import get_db_connection, is_postgres, q, ph
+from utils import get_db_connection, is_postgres, q, ph, adapt_create_sql
 
 
 class ForecastImporter:
@@ -456,7 +456,7 @@ class ForecastImporter:
     
     def _ensure_forecast_table(self, cursor):
         """Tạo bảng Forecast nếu chưa có"""
-        cursor.execute("""
+        sql = """
             CREATE TABLE IF NOT EXISTS Forecast (
                 ID INTEGER PRIMARY KEY AUTOINCREMENT,
                 [ID sản phẩm] INTEGER,
@@ -472,7 +472,8 @@ class ForecastImporter:
                 [Thời gian sửa] DATETIME,
                 [Đã xóa] INTEGER DEFAULT 0
             )
-        """)
+        """
+        cursor.execute(adapt_create_sql(sql, self.db_path))
     
     def import_forecast_data(
         self,
