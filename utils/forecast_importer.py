@@ -385,11 +385,34 @@ class ForecastImporter:
     
     def _get_product_id(self, cursor, ten_cam: str) -> Optional[int]:
         _p = self._ph()
+        # 1. Exact match (TRIM)
         cursor.execute(f"""
             SELECT {self._q('ID')} 
             FROM {self._q('SanPham')} 
             WHERE TRIM({self._q('Tên cám')}) = {_p} AND {self._da_xoa_check()}
         """, (ten_cam,))
+        result = cursor.fetchone()
+        if result:
+            return result[0]
+        
+        # 2. Fallback: normalize spaces before parentheses
+        # "550S(5*5)" should match "550S (5*5)" and vice versa
+        import re
+        normalized = re.sub(r'\s*\(', '(', ten_cam.strip())
+        if self._is_pg:
+            cursor.execute(f"""
+                SELECT {self._q('ID')} 
+                FROM {self._q('SanPham')} 
+                WHERE REGEXP_REPLACE(TRIM({self._q('Tên cám')}), '\\s*\\(', '(', 'g') = {_p} 
+                AND {self._da_xoa_check()}
+            """, (normalized,))
+        else:
+            cursor.execute(f"""
+                SELECT {self._q('ID')} 
+                FROM {self._q('SanPham')} 
+                WHERE REPLACE(TRIM({self._q('Tên cám')}), ' (', '(') = {_p} 
+                AND {self._da_xoa_check()}
+            """, (normalized,))
         result = cursor.fetchone()
         return result[0] if result else None
     
