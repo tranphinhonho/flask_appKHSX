@@ -7,6 +7,7 @@ from backend import db
 from backend.utils import get_vietnam_time
 from utils import adapt_create_sql
 import pandas as pd
+import math
 import config
 
 dathang_bp = Blueprint('dathang', __name__)
@@ -58,7 +59,15 @@ def get_dathang_list():
             joins=joins
         )
 
+        # Clean NaN/None values before JSON serialization
+        df = df.fillna('')
         data = df.to_dict('records') if not df.empty else []
+
+        # Clean any remaining NaN/float('nan') values
+        for row in data:
+            for key, val in row.items():
+                if isinstance(val, float) and (math.isnan(val) or math.isinf(val)):
+                    row[key] = ''
 
         # Rename join columns
         for row in data:
