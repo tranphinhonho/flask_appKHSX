@@ -1,0 +1,200 @@
+{% extends "base.html" %}
+
+{% block title %}Quản lý Users - Kế hoạch Sản xuất{% endblock %}
+
+{% block content %}
+<!-- Thêm user -->
+<div class="form-section">
+    <h3><i class="bi bi-person-plus"></i> 1. Thêm người dùng mới</h3>
+    <form id="form-add-user" onsubmit="addUser(event)">
+        <div class="form-row">
+            <div class="form-field">
+                <label>Username *</label>
+                <input type="text" id="add-username" required placeholder="Nhập username">
+            </div>
+            <div class="form-field">
+                <label>Mật khẩu *</label>
+                <input type="password" id="add-password" required placeholder="Nhập mật khẩu">
+            </div>
+            <div class="form-field">
+                <label>Họ và tên *</label>
+                <input type="text" id="add-fullname" required placeholder="Nhập họ tên">
+            </div>
+            <div class="form-field">
+                <label>Vai trò</label>
+                <select id="add-vaitro">
+                    <option value="">-- Đang tải --</option>
+                </select>
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-field">
+                <label>Email</label>
+                <input type="email" id="add-email" placeholder="Nhập email">
+            </div>
+            <div class="form-field">
+                <label>Số điện thoại</label>
+                <input type="text" id="add-phone" placeholder="Nhập SĐT">
+            </div>
+            <div class="form-field">
+                <label>Giới tính</label>
+                <select id="add-gender">
+                    <option value="Nam">Nam</option>
+                    <option value="Nữ">Nữ</option>
+                </select>
+            </div>
+            <div class="form-field">
+                <label>Địa chỉ</label>
+                <input type="text" id="add-address" placeholder="Nhập địa chỉ">
+            </div>
+        </div>
+        <div class="mt-2">
+            <button type="submit" class="btn btn-primary" id="btn-add-user">
+                <i class="bi bi-plus-lg"></i> Thêm người dùng
+            </button>
+        </div>
+    </form>
+</div>
+
+<!-- Danh sách users -->
+<div class="data-section">
+    <h3><i class="bi bi-people"></i> 2. Danh sách người dùng</h3>
+    <div id="users-table"></div>
+</div>
+
+<!-- Modal Reset Password -->
+<div id="modal-reset-pw" class="modal-overlay" style="display:none">
+    <div class="modal-box">
+        <h3><i class="bi bi-key"></i> Reset mật khẩu</h3>
+        <p id="reset-pw-info" class="text-muted mb-2"></p>
+        <div class="form-field mb-2">
+            <label>Mật khẩu mới</label>
+            <input type="password" id="reset-pw-input" placeholder="Nhập mật khẩu mới">
+        </div>
+        <div style="display:flex; gap:8px; justify-content:flex-end">
+            <button class="btn btn-secondary" onclick="closeResetPwModal()">Hủy</button>
+            <button class="btn btn-primary" onclick="doResetPassword()">Đặt lại</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let rolesMap = {};
+
+    // Load danh sách vai trò
+    async function loadRoles() {
+        try {
+            const data = await api.get('/api/admin/roles/list');
+            if (data && data.roles) {
+                const sel = document.getElementById('add-vaitro');
+                sel.innerHTML = '<option value="">-- Chọn vai trò --</option>';
+                data.roles.forEach(r => {
+                    sel.innerHTML += `<option value="${r.ID}">${r['Vai trò']}</option>`;
+                    rolesMap[r.ID] = r['Vai trò'];
+                });
+            }
+        } catch (e) {
+            console.error('Lỗi load roles:', e);
+        }
+    }
+
+    // Khởi tạo DataTable
+    const columns = [
+        { key: 'ID', label: 'ID' },
+        { key: 'Username', label: 'Username', editable: true },
+        { key: 'Fullname', label: 'Họ tên', editable: true },
+        { key: 'Vai trò', label: 'Vai trò' },
+        { key: 'Email', label: 'Email', editable: true },
+        { key: 'Số điện thoại', label: 'SĐT', editable: true },
+        { key: 'Giới tính', label: 'Giới tính', editable: true },
+        { key: 'Địa chỉ', label: 'Địa chỉ', editable: true },
+        { key: 'Người tạo', label: 'Người tạo' },
+        { key: 'Thời gian tạo', label: 'Thời gian tạo' }
+    ];
+
+    const dt = new DataTable('users-table', {
+        apiUrl: '/api/admin/users',
+        editUrl: '/api/admin/users',
+        columns: columns,
+        searchColumns: ['Username', 'Fullname', 'Email'],
+        perPage: 20,
+        onDelete: async function (ids) {
+            const result = await api.post('/api/admin/users/delete', { ids: ids });
+            if (result && result.success) {
+                showToast(result.message, 'success');
+                dt.loadData();
+            } else {
+                showToast(result?.message || 'Lỗi khi xóa', 'error');
+            }
+        }
+    });
+
+    // Thêm user
+    async function addUser(e) {
+        e.preventDefault();
+        const btn = document.getElementById('btn-add-user');
+        btn.disabled = true;
+
+        const data = {
+            'Username': document.getElementById('add-username').value.trim(),
+            'Password': document.getElementById('add-password').value.trim(),
+            'Fullname': document.getElementById('add-fullname').value.trim(),
+            'ID_VaiTro': document.getElementById('add-vaitro').value || '1',
+            'Email': document.getElementById('add-email').value.trim(),
+            'Số điện thoại': document.getElementById('add-phone').value.trim(),
+            'Giới tính': document.getElementById('add-gender').value,
+            'Địa chỉ': document.getElementById('add-address').value.trim()
+        };
+
+        try {
+            const result = await api.post('/api/admin/users', data);
+            if (result && result.success) {
+                showToast(result.message, 'success');
+                document.getElementById('form-add-user').reset();
+                dt.loadData();
+            } else {
+                showToast(result?.message || 'Lỗi', 'error');
+            }
+        } catch (err) {
+            showToast('Lỗi kết nối', 'error');
+        } finally {
+            btn.disabled = false;
+        }
+    }
+
+    // Reset password
+    let resetUserId = null;
+    function openResetPwModal(userId, username) {
+        resetUserId = userId;
+        document.getElementById('reset-pw-info').textContent = `User: ${username}`;
+        document.getElementById('reset-pw-input').value = '';
+        document.getElementById('modal-reset-pw').style.display = 'flex';
+    }
+
+    function closeResetPwModal() {
+        document.getElementById('modal-reset-pw').style.display = 'none';
+        resetUserId = null;
+    }
+
+    async function doResetPassword() {
+        const pw = document.getElementById('reset-pw-input').value.trim();
+        if (!pw) { showToast('Nhập mật khẩu mới', 'warning'); return; }
+        try {
+            const result = await api.post(`/api/admin/users/reset-password/${resetUserId}`, { password: pw });
+            if (result && result.success) {
+                showToast('Đã reset mật khẩu', 'success');
+                closeResetPwModal();
+            } else {
+                showToast(result?.message || 'Lỗi', 'error');
+            }
+        } catch (e) {
+            showToast('Lỗi kết nối', 'error');
+        }
+    }
+
+    // Init
+    document.addEventListener('DOMContentLoaded', loadRoles);
+</script>
+{% endblock %}

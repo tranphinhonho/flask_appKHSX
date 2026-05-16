@@ -1,0 +1,204 @@
+{% extends "base.html" %}
+
+{% block title %}Sản phẩm - Kế hoạch Sản xuất{% endblock %}
+
+{% block content %}
+<!-- Import Excel -->
+<div class="form-section">
+    <h3><i class="bi bi-file-earmark-arrow-up"></i> Import danh mục sản phẩm</h3>
+    <div class="import-section" id="import-area">
+        <input type="file" id="import-file" accept=".xlsx,.xls" onchange="handleImport(this)">
+        <label for="import-file">
+            <i class="bi bi-cloud-arrow-up" style="font-size:24px;display:block;margin-bottom:4px"></i>
+            Chọn file Excel để import (.xlsx, .xls)
+        </label>
+        <div id="import-status" class="mt-1 text-muted" style="font-size:12px"></div>
+    </div>
+    <div style="text-align:right; margin-top:8px">
+        <a href="/templates/SanPham.xlsx" class="btn btn-secondary btn-sm" download>
+            <i class="bi bi-download"></i> Tải template mẫu
+        </a>
+    </div>
+</div>
+
+<!-- Thêm sản phẩm -->
+<div class="form-section">
+    <h3><i class="bi bi-plus-circle"></i> 1. Thêm sản phẩm</h3>
+    <form id="form-add-sanpham" onsubmit="addSanPham(event)">
+        <div class="form-row">
+            <div class="form-field">
+                <label>Code cám *</label>
+                <input type="text" id="codecam" required>
+            </div>
+            <div class="form-field">
+                <label>Tên cám *</label>
+                <input type="text" id="tencam" required>
+            </div>
+            <div class="form-field">
+                <label>Kích cỡ ép viên</label>
+                <input type="text" id="kichcoepvien">
+            </div>
+            <div class="form-field">
+                <label>Dạng ép viên</label>
+                <input type="text" id="dangepvien">
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-field">
+                <label>Kích cỡ đóng bao</label>
+                <select id="kichcodongbao">
+                    <option value="">-- Chọn --</option>
+                    <option value="25">25</option>
+                    <option value="40">40</option>
+                    <option value="50">50</option>
+                </select>
+            </div>
+            <div class="form-field">
+                <label>Pellet</label>
+                <input type="text" id="pellet">
+            </div>
+            <div class="form-field">
+                <label>Packing</label>
+                <input type="text" id="packing">
+            </div>
+            <div class="form-field">
+                <label>Batch size (kg)</label>
+                <select id="batchsize">
+                    <option value="">-- Chọn --</option>
+                    <option value="8000">8000</option>
+                    <option value="8400">8400</option>
+                    <option value="6000">6000</option>
+                </select>
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-field">
+                <label>Vật nuôi</label>
+                <select id="vatnuoi">
+                    <option value="">-- Chọn --</option>
+                    <option value="H">H - Heo</option>
+                    <option value="G">G - Gà</option>
+                    <option value="B">B - Bò</option>
+                    <option value="V">V - Vịt</option>
+                    <option value="C">C - Cút</option>
+                    <option value="D">D - Dê</option>
+                </select>
+            </div>
+        </div>
+        <div class="mt-2">
+            <button type="submit" class="btn btn-primary" id="btn-add">
+                <i class="bi bi-plus-lg"></i> Thêm sản phẩm
+            </button>
+        </div>
+    </form>
+</div>
+
+<!-- Danh sách sản phẩm -->
+<div class="data-section">
+    <h3><i class="bi bi-table"></i> 2. Danh sách sản phẩm hiện tại</h3>
+    <div id="sanpham-table"></div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Cột hiển thị (editable: true cho phép sửa trực tiếp)
+    const columns = [
+        { key: 'ID', label: 'ID' },
+        { key: 'Code cám', label: 'Code cám', editable: true },
+        { key: 'Tên cám', label: 'Tên cám', editable: true },
+        { key: 'Kích cỡ ép viên', label: 'Kích cỡ ép viên', editable: true },
+        { key: 'Dạng ép viên', label: 'Dạng ép viên', editable: true },
+        { key: 'Kích cỡ đóng bao', label: 'Kích cỡ đóng bao', editable: true },
+        { key: 'Pellet', label: 'Pellet', editable: true },
+        { key: 'Packing', label: 'Packing', editable: true },
+        { key: 'Batch size', label: 'Batch size', editable: true },
+        { key: 'Vật nuôi', label: 'Vật nuôi', editable: true },
+        { key: 'Người tạo', label: 'Người tạo' },
+        { key: 'Thời gian tạo', label: 'Thời gian tạo' }
+    ];
+
+    // Khởi tạo DataTable
+    const dt = new DataTable('sanpham-table', {
+        apiUrl: '/api/sanpham',
+        editUrl: '/api/sanpham',
+        columns: columns,
+        searchColumns: ['Code cám', 'Tên cám', 'Vật nuôi'],
+        perPage: 20,
+        onDelete: async function (ids) {
+            const result = await api.post('/api/sanpham/delete', { ids: ids });
+            if (result && result.success) {
+                showToast(result.message, 'success');
+                dt.loadData();
+            } else {
+                showToast(result?.message || 'Lỗi khi xóa', 'error');
+            }
+        }
+    });
+
+    // Thêm sản phẩm
+    async function addSanPham(e) {
+        e.preventDefault();
+
+        const btn = document.getElementById('btn-add');
+        btn.disabled = true;
+
+        const data = {
+            'Code cám': document.getElementById('codecam').value.trim(),
+            'Tên cám': document.getElementById('tencam').value.trim(),
+            'Kích cỡ ép viên': document.getElementById('kichcoepvien').value.trim(),
+            'Dạng ép viên': document.getElementById('dangepvien').value.trim(),
+            'Kích cỡ đóng bao': document.getElementById('kichcodongbao').value || null,
+            'Pellet': document.getElementById('pellet').value.trim(),
+            'Packing': document.getElementById('packing').value.trim(),
+            'Batch size': document.getElementById('batchsize').value || null,
+            'Vật nuôi': document.getElementById('vatnuoi').value
+        };
+
+        try {
+            const result = await api.post('/api/sanpham', data);
+            if (result && result.success) {
+                showToast(result.message, 'success');
+                document.getElementById('form-add-sanpham').reset();
+                dt.loadData(); // Refresh table
+            } else {
+                showToast(result?.message || 'Lỗi khi thêm', 'error');
+            }
+        } catch (err) {
+            showToast('Lỗi kết nối', 'error');
+        } finally {
+            btn.disabled = false;
+        }
+    }
+
+    // Import Excel
+    async function handleImport(input) {
+        const file = input.files[0];
+        if (!file) return;
+
+        const status = document.getElementById('import-status');
+        status.textContent = `Đang import ${file.name}...`;
+
+        const formData = new FormData();
+        formData.append('file', file);
+
+        try {
+            const result = await api.upload('/api/sanpham/import', formData);
+            if (result && result.success) {
+                showToast(result.message, 'success');
+                dt.loadData();
+                status.textContent = `✓ ${result.message}`;
+            } else {
+                showToast(result?.message || 'Import thất bại', 'error');
+                status.textContent = `✗ ${result?.message || 'Import thất bại'}`;
+            }
+        } catch (err) {
+            showToast('Lỗi import', 'error');
+            status.textContent = '✗ Lỗi import';
+        }
+
+        input.value = ''; // Reset file input
+    }
+</script>
+{% endblock %}

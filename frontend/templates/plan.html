@@ -1,0 +1,396 @@
+{% extends "base.html" %}
+{% block title %}Plan{% endblock %}
+
+{% block content %}
+<h2><i class="bi bi-calendar-check-fill"></i> Kế hoạch Sản xuất</h2>
+<p class="text-muted">Tổng hợp, nhập thủ công & quản lý Plan</p>
+
+<!-- Tabs -->
+<div class="tab-nav">
+    <button class="tab-btn active" onclick="switchTab(event,'tab-auto')">📊 Tổng hợp KH</button>
+    <button class="tab-btn" onclick="switchTab(event,'tab-manual')">✍️ Nhập thủ công</button>
+    <button class="tab-btn" onclick="switchTab(event,'tab-list')">📋 Danh sách</button>
+</div>
+
+<!-- Tab 1: Tổng hợp kế hoạch -->
+<div class="tab-content active" id="tab-auto">
+    <div class="form-section">
+        <h3><i class="bi bi-calculator"></i> Tính toán Kế hoạch tự động</h3>
+        <div class="form-row" style="align-items:flex-end;margin-bottom:16px">
+            <div class="form-field" style="flex:1">
+                <label>📅 Ngày kế hoạch</label>
+                <input type="date" id="auto-ngay">
+            </div>
+            <div class="form-field" style="flex:1">
+                <label><input type="checkbox" id="skip-sunday" checked> Không SX Chủ nhật</label>
+            </div>
+            <div class="form-field" style="flex:1;text-align:center;padding:8px;background:#e3f2fd;border-radius:6px">
+                <div class="text-muted" style="font-size:11px">Công suất tối đa</div>
+                <div style="font-size:16px;font-weight:bold">2,100,000 Kg</div>
+            </div>
+            <div class="form-field">
+                <button class="btn btn-primary" onclick="calculatePlan()">🔄 Tính toán</button>
+            </div>
+        </div>
+        <div id="auto-result"></div>
+    </div>
+</div>
+
+<!-- Tab 2: Nhập thủ công -->
+<div class="tab-content" id="tab-manual">
+    <div class="form-section">
+        <h3><i class="bi bi-pencil-square"></i> Nhập Plan thủ công</h3>
+        <table class="data-table" style="font-size:12px">
+            <thead>
+                <tr>
+                    <th>Sản phẩm</th>
+                    <th>Số lượng (kg)</th>
+                    <th>Ngày plan</th>
+                    <th>Ghi chú</th>
+                    <th>Xóa</th>
+                </tr>
+            </thead>
+            <tbody id="plan-entry-rows"></tbody>
+        </table>
+        <button class="btn btn-secondary btn-sm" onclick="addPlanRow()" style="margin-top:8px">+ Thêm dòng</button>
+        <br>
+        <button class="btn btn-primary" onclick="saveManual()" style="margin-top:12px">
+            <i class="bi bi-save"></i> Lưu Plan
+        </button>
+        <div id="manual-result" style="margin-top:12px"></div>
+
+        <!-- Import Excel -->
+        <div style="margin-top:20px;padding:12px;background:#f8f9fa;border-radius:8px">
+            <h4>📁 Import Excel</h4>
+            <p class="text-muted" style="font-size:12px">Cột: <strong>Tên sản phẩm</strong>, <strong>Số lượng</strong>,
+                Ngày plan (tùy chọn), Ghi chú (tùy chọn)</p>
+            <div class="form-row" style="align-items:flex-end">
+                <div class="form-field" style="flex:2">
+                    <input type="file" id="import-file" accept=".xlsx,.xls">
+                </div>
+                <div class="form-field" style="flex:1">
+                    <label>Ngày plan</label>
+                    <input type="date" id="import-ngay">
+                </div>
+                <div class="form-field">
+                    <button class="btn btn-primary" onclick="importExcel()">🚀 Import</button>
+                </div>
+            </div>
+            <div id="import-result" style="margin-top:8px"></div>
+        </div>
+    </div>
+</div>
+
+<!-- Tab 3: Danh sách -->
+<div class="tab-content" id="tab-list">
+    <div class="form-section">
+        <!-- Stats -->
+        <div id="plan-stats" style="margin-bottom:12px"></div>
+
+        <div class="form-row" style="margin-bottom:12px;align-items:flex-end">
+            <div class="form-field" style="flex:1">
+                <label>📅 Ngày</label>
+                <input type="date" id="filter-ngay" onchange="loadPlanList();loadStats()">
+            </div>
+        </div>
+        <div id="plan-table">
+            <p class="text-muted">Đang tải...</p>
+        </div>
+
+        <!-- Delete section -->
+        <div style="margin-top:20px;padding:12px;background:#fff3cd;border-radius:8px">
+            <h4>🗑️ Xóa theo Mã plan / Ngày</h4>
+            <div class="form-row" style="align-items:flex-end">
+                <div class="form-field" style="flex:1">
+                    <label>Ngày</label>
+                    <input type="date" id="delete-ngay" onchange="loadMaPlanList()">
+                </div>
+                <div class="form-field" style="flex:1">
+                    <label>Mã plan</label>
+                    <select id="delete-maplan">
+                        <option value="">-- Tất cả --</option>
+                    </select>
+                </div>
+                <div class="form-field">
+                    <button class="btn btn-danger" onclick="deletePlanBatch()">🗑️ Xóa</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let _products = [];
+    let _calcData = null;
+
+    function switchTab(e, tabId) {
+        document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.tab-nav .tab-btn').forEach(b => b.classList.remove('active'));
+        document.getElementById(tabId).classList.add('active');
+        e.currentTarget.classList.add('active');
+        if (tabId === 'tab-list') { loadPlanList(); loadStats(); }
+    }
+
+    async function initPage() {
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        const tomorrowStr = tomorrow.toISOString().split('T')[0];
+        document.getElementById('auto-ngay').value = tomorrowStr;
+        document.getElementById('import-ngay').value = tomorrowStr;
+        document.getElementById('delete-ngay').value = tomorrowStr;
+
+        const latest = await api.get('/api/plan/latest-date');
+        document.getElementById('filter-ngay').value = latest?.latest_date || tomorrowStr;
+
+        const prods = await api.get('/api/sanpham/lookup');
+        if (prods?.data) _products = prods.data;
+
+        addPlanRow();
+    }
+
+    function _prodOpts() {
+        return '<option value="">-- Chọn --</option>' +
+            _products.map(p => `<option value="${p.ID}">${p['Code cám']} | ${p['Tên cám']}</option>`).join('');
+    }
+
+    // ==================== Auto Calculate ====================
+    async function calculatePlan() {
+        const ngay = document.getElementById('auto-ngay').value;
+        if (!ngay) { showToast('Chọn ngày', 'warning'); return; }
+
+        document.getElementById('auto-result').innerHTML = '<p class="text-muted">Đang tính toán...</p>';
+        const r = await api.post('/api/plan/calculate', {
+            ngay, skip_sunday: document.getElementById('skip-sunday').checked
+        });
+
+        if (!r?.success || !r.danh_sach?.length) {
+            document.getElementById('auto-result').innerHTML =
+                `<div style="padding:8px;background:#fff3cd;border-radius:4px">⚠️ ${r?.message || 'Không có dữ liệu'}</div>`;
+            _calcData = null;
+            return;
+        }
+
+        _calcData = r;
+
+        // Capacity bar
+        const pct = r.ty_le;
+        const barColor = pct > 105 ? '#dc3545' : (pct > 100 ? '#ffc107' : '#28a745');
+        const statusMsg = pct > 105 ? '🚨 VƯỢT CÔNG SUẤT!' : (pct > 100 ? '⚠️ Vượt chuẩn' : '✅ Trong giới hạn');
+
+        let html = `<h4>📅 Kế hoạch: ${r.ngay_display} (${r.loai === 'manual' ? 'Thủ công' : 'Tự động'})</h4>`;
+
+        // Metrics
+        html += `<div style="display:flex;gap:12px;margin-bottom:12px">
+            <div style="flex:1;padding:10px;background:#e8f5e9;border-radius:6px;text-align:center">
+                <div class="text-muted" style="font-size:11px">Tổng sản lượng</div>
+                <div style="font-size:18px;font-weight:bold">${r.tong.toLocaleString()} Kg</div>
+                <div style="font-size:11px">${(r.tong / 1000).toFixed(1)} tấn</div>
+            </div>
+            <div style="flex:1;padding:10px;background:#e3f2fd;border-radius:6px;text-align:center">
+                <div class="text-muted" style="font-size:11px">Tỷ lệ công suất</div>
+                <div style="font-size:18px;font-weight:bold;color:${barColor}">${pct}%</div>
+                <div style="height:6px;background:#dee2e6;border-radius:3px;margin-top:4px">
+                    <div style="height:100%;width:${Math.min(100, pct)}%;background:${barColor};border-radius:3px"></div>
+                </div>
+            </div>
+            <div style="flex:1;padding:10px;background:#fff3e0;border-radius:6px;text-align:center">
+                <div class="text-muted" style="font-size:11px">Sản phẩm</div>
+                <div style="font-size:18px;font-weight:bold">${r.so_sp}</div>
+                <div style="font-size:11px">${statusMsg}</div>
+            </div>
+        </div>`;
+
+        // Table
+        html += '<div style="max-height:500px;overflow:auto"><table class="data-table" style="font-size:11px"><thead><tr>';
+        ['#', 'Code', 'Tên', 'Stock (Kg)', 'DoH', 'SX (Kg)', 'Loại', 'Ghi chú'].forEach(c => html += `<th>${c}</th>`);
+        html += '</tr></thead><tbody>';
+        r.danh_sach.forEach((item, i) => {
+            const dohColor = item.doh < 1 ? 'color:#dc3545;font-weight:bold' : (item.doh < 3 ? 'color:#ffc107' : '');
+            html += `<tr>
+                <td>${i + 1}</td><td><strong>${item.code || ''}</strong></td><td>${item.ten || ''}</td>
+                <td>${(item.stock || 0).toLocaleString()}</td>
+                <td style="${dohColor}">${item.doh === 999 ? '-' : item.doh}</td>
+                <td><strong>${(item.so_luong || 0).toLocaleString()}</strong></td>
+                <td><span style="padding:2px 6px;background:${item.loai === 'Đơn hàng' ? '#ffcdd2' : item.loai === 'Forecast' ? '#c8e6c9' : '#e1f5fe'};border-radius:3px;font-size:10px">${item.loai}</span></td>
+                <td style="font-size:10px">${item.ghi_chu || ''}</td>
+            </tr>`;
+        });
+        html += '</tbody></table></div>';
+
+        html += `<button class="btn btn-primary" onclick="saveCalculated()" style="width:100%;margin-top:12px">
+            💾 Lưu Kế hoạch vào Database
+        </button>
+        <div id="save-result" style="margin-top:8px"></div>`;
+
+        document.getElementById('auto-result').innerHTML = html;
+    }
+
+    async function saveCalculated() {
+        if (!_calcData) return;
+        const r = await api.post('/api/plan/save-calculated', {
+            danh_sach: _calcData.danh_sach, ngay: _calcData.ngay
+        });
+        if (r?.success) {
+            document.getElementById('save-result').innerHTML =
+                `<div style="padding:8px;background:#d4edda;border-radius:4px">✅ ${r.message}</div>`;
+            showToast(r.message, 'success');
+            _calcData = null;
+        }
+    }
+
+    // ==================== Manual ====================
+    function addPlanRow() {
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        const tStr = tomorrow.toISOString().split('T')[0];
+        const tbody = document.getElementById('plan-entry-rows');
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td><select class="pl-sp" style="width:250px">${_prodOpts()}</select></td>
+            <td><input type="number" class="pl-sl" min="0" step="100" value="0" style="width:100px"></td>
+            <td><input type="date" class="pl-ngay" value="${tStr}" style="width:130px"></td>
+            <td><input type="text" class="pl-gc" placeholder="..." style="width:150px"></td>
+            <td><button class="btn btn-danger btn-sm" onclick="this.closest('tr').remove()" style="padding:2px 8px">✕</button></td>`;
+        tbody.appendChild(tr);
+    }
+
+    async function saveManual() {
+        const rows = document.querySelectorAll('#plan-entry-rows tr');
+        const items = [];
+        rows.forEach(row => {
+            const sp = row.querySelector('.pl-sp')?.value;
+            const sl = parseInt(row.querySelector('.pl-sl')?.value) || 0;
+            if (sp && sl > 0) items.push({
+                id_sanpham: sp, so_luong: sl,
+                ngay_plan: row.querySelector('.pl-ngay')?.value || '',
+                ghi_chu: row.querySelector('.pl-gc')?.value || ''
+            });
+        });
+        if (!items.length) { showToast('Không có dữ liệu', 'warning'); return; }
+
+        const r = await api.post('/api/plan/create', { items });
+        document.getElementById('manual-result').innerHTML = r?.success
+            ? `<div style="padding:8px;background:#d4edda;border-radius:4px">✅ ${r.message}</div>`
+            : `<div style="padding:8px;background:#f8d7da;border-radius:4px">❌ ${r?.message || 'Lỗi'}</div>`;
+        if (r?.success) showToast(r.message, 'success');
+    }
+
+    async function importExcel() {
+        const file = document.getElementById('import-file').files[0];
+        if (!file) { showToast('Chọn file', 'warning'); return; }
+
+        const fd = new FormData();
+        fd.append('file', file);
+        fd.append('ngay_plan', document.getElementById('import-ngay').value);
+
+        document.getElementById('import-result').innerHTML = '<span class="text-muted">Đang import...</span>';
+        const r = await api.upload('/api/plan/import-excel', fd);
+
+        if (r?.success) {
+            let html = `<div style="padding:8px;background:#d4edda;border-radius:4px">✅ ${r.message}</div>`;
+            if (r.not_found?.length) {
+                html += `<details style="margin-top:4px"><summary class="text-muted" style="font-size:11px">⚠️ ${r.not_found.length} SP không tìm thấy</summary>
+                    <div style="font-size:11px">${r.not_found.join(', ')}</div></details>`;
+            }
+            document.getElementById('import-result').innerHTML = html;
+            showToast('Import thành công', 'success');
+        } else {
+            document.getElementById('import-result').innerHTML = `<div style="padding:8px;background:#f8d7da;border-radius:4px">❌ ${r?.message || 'Lỗi'}</div>`;
+        }
+    }
+
+    // ==================== List ====================
+    async function loadStats() {
+        const ngay = document.getElementById('filter-ngay').value;
+        const r = await api.get(`/api/plan/stats?ngay=${ngay}`);
+        const c = document.getElementById('plan-stats');
+
+        if (!r?.tong || r.tong === 0) { c.innerHTML = ''; return; }
+
+        const pct = r.ty_le;
+        const color = pct > 105 ? '#dc3545' : (pct > 100 ? '#ffc107' : '#28a745');
+
+        c.innerHTML = `<div style="display:flex;gap:12px">
+            <div style="flex:1;padding:8px;background:#e8f5e9;border-radius:6px;text-align:center">
+                <div class="text-muted" style="font-size:11px">Sản phẩm</div>
+                <div style="font-weight:bold">${r.so_sp}</div>
+            </div>
+            <div style="flex:1;padding:8px;background:#e3f2fd;border-radius:6px;text-align:center">
+                <div class="text-muted" style="font-size:11px">Tổng</div>
+                <div style="font-weight:bold">${r.tong.toLocaleString()} kg</div>
+            </div>
+            <div style="flex:1;padding:8px;background:${color}22;border-radius:6px;text-align:center">
+                <div class="text-muted" style="font-size:11px">Công suất</div>
+                <div style="font-weight:bold;color:${color}">${pct}%</div>
+            </div>
+        </div>`;
+    }
+
+    async function loadPlanList() {
+        const ngay = document.getElementById('filter-ngay').value;
+        let params = '?per_page=200';
+        if (ngay) params += `&ngay=${ngay}`;
+
+        const r = await api.get(`/api/plan${params}`);
+        const c = document.getElementById('plan-table');
+
+        if (!r?.data?.length) { c.innerHTML = '<p class="text-muted">Không có dữ liệu</p>'; return; }
+
+        const cols = ['ID', 'Mã plan', 'Code cám', 'Tên cám', 'Số lượng', 'Ngày plan', 'Ghi chú', 'Người tạo'];
+        let html = `<p class="text-muted" style="font-size:12px">Tổng: ${r.total}</p>`;
+        html += '<div style="max-height:500px;overflow:auto"><table class="data-table" style="font-size:11px"><thead><tr>';
+        cols.forEach(c => html += `<th>${c}</th>`);
+        html += '<th>Xóa</th></tr></thead><tbody>';
+
+        r.data.forEach(row => {
+            html += '<tr>';
+            cols.forEach(c => {
+                let v = row[c];
+                if (c === 'Số lượng' && typeof v === 'number') v = v.toLocaleString();
+                html += `<td>${v ?? ''}</td>`;
+            });
+            html += `<td><button class="btn btn-danger btn-sm" onclick="deletePlan(${row.ID})" style="padding:2px 8px;font-size:11px">🗑️</button></td></tr>`;
+        });
+        html += '</tbody></table></div>';
+        c.innerHTML = html;
+    }
+
+    async function deletePlan(id) {
+        if (!confirm('Xóa?')) return;
+        const r = await api.post('/api/plan/delete', { id });
+        if (r?.success) { showToast('Đã xóa', 'success'); loadPlanList(); loadStats(); }
+    }
+
+    // ==================== Delete batch ====================
+    async function loadMaPlanList() {
+        const ngay = document.getElementById('delete-ngay').value;
+        const r = await api.get(`/api/plan/ma-plan-list?ngay=${ngay}`);
+        const sel = document.getElementById('delete-maplan');
+        sel.innerHTML = '<option value="">-- Tất cả ngày này --</option>';
+        if (r?.data) {
+            r.data.forEach(d => {
+                sel.innerHTML += `<option value="${d.ma}">${d.ma} (${d.count} SP - ${d.tong.toLocaleString()} kg)</option>`;
+            });
+        }
+    }
+
+    async function deletePlanBatch() {
+        const ma = document.getElementById('delete-maplan').value;
+        const ngay = document.getElementById('delete-ngay').value;
+
+        const msg = ma ? `Xóa mã plan ${ma}?` : `Xóa TẤT CẢ plan ngày ${ngay}?`;
+        if (!confirm(msg)) return;
+
+        const body = ma ? { ma_plan: ma } : { ngay };
+        const r = await api.post('/api/plan/delete-by-maplan', body);
+        if (r?.success) {
+            showToast(r.message, 'success');
+            loadPlanList(); loadStats(); loadMaPlanList();
+        }
+    }
+
+    initPage();
+</script>
+{% endblock %}

@@ -1,0 +1,519 @@
+{% extends "base.html" %}
+{% block title %}Tồn bồn{% endblock %}
+
+{% block content %}
+<h2><i class="bi bi-box-seam"></i> Tồn bồn</h2>
+<p class="text-muted">Theo dõi sản phẩm trong các bồn chứa</p>
+
+<!-- Tabs -->
+<div class="tab-nav">
+    <button class="tab-btn active" onclick="switchTonBonTab(event,'tab-list')">📋 Danh sách</button>
+    <button class="tab-btn" onclick="switchTonBonTab(event,'tab-import')">📁 Import Excel</button>
+    <button class="tab-btn" onclick="switchTonBonTab(event,'tab-manual')">✍️ Nhập thủ công</button>
+</div>
+
+<!-- Tab 1: Danh sách -->
+<div class="tab-content active" id="tab-list">
+    <div class="form-section">
+        <!-- Filters -->
+        <div class="form-row" style="margin-bottom:16px;align-items:flex-end">
+            <div class="form-field" style="flex:1">
+                <label>📅 Ngày kiểm kho</label>
+                <input type="date" id="filter-ngay" onchange="loadTonBonData()">
+            </div>
+            <div class="form-field" style="flex:1">
+                <label>📦 Loại SP</label>
+                <select id="filter-loai" onchange="loadTonBonData()">
+                    <option value="Tất cả">Tất cả</option>
+                    <option value="Thành phẩm">Thành phẩm</option>
+                    <option value="Bán thành phẩm">Bán thành phẩm</option>
+                </select>
+            </div>
+            <div class="form-field" style="flex:1">
+                <label>📍 Trạng thái</label>
+                <select id="filter-trangthai" onchange="loadTonBonData()">
+                    <option value="Tất cả">Tất cả</option>
+                    <option>Chờ đóng bao 25kg</option>
+                    <option>Chờ đóng bao 50kg</option>
+                    <option>Chờ xe Silo</option>
+                    <option>Chờ ép viên</option>
+                    <option>Đang xử lý</option>
+                </select>
+            </div>
+            <div class="form-field" style="flex:1">
+                <label>🕐 Ca</label>
+                <select id="filter-ca" onchange="loadTonBonData()">
+                    <option value="Tất cả">Tất cả</option>
+                    <option>Ca 1</option>
+                    <option>Ca 2</option>
+                    <option>Ca 3</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Data table -->
+        <div id="tonbon-table">
+            <p class="text-muted">Đang tải...</p>
+        </div>
+
+        <!-- Stats -->
+        <div style="margin-top:20px;padding:16px;background:#f8f9fa;border-radius:8px">
+            <h4>📊 Thống kê Tồn bồn</h4>
+            <div id="tonbon-stats" style="display:flex;gap:24px;margin-top:8px">
+                <p class="text-muted">Đang tải...</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Tab 2: Import Excel -->
+<div class="tab-content" id="tab-import">
+    <div class="form-section">
+        <h3><i class="bi bi-file-earmark-excel"></i> Import từ Báo cáo tồn bồn</h3>
+
+        <!-- Source selection -->
+        <div class="form-row" style="margin-bottom:16px;align-items:flex-end">
+            <div class="form-field" style="flex:1">
+                <label>📁 Nguồn dữ liệu</label>
+                <select id="import-source" onchange="toggleImportSource()">
+                    <option value="local">Files trong folder EXCEL</option>
+                    <option value="upload">Upload file trực tiếp</option>
+                </select>
+            </div>
+            <div class="form-field" style="flex:1">
+                <label>📦 Loại sản phẩm</label>
+                <select id="import-loaisp">
+                    <option>Thành phẩm</option>
+                    <option>Bán thành phẩm</option>
+                </select>
+            </div>
+            <div class="form-field" style="flex:1">
+                <label>📌 Chế độ import</label>
+                <select id="import-mode" onchange="toggleImportMode()">
+                    <option value="all">Import tất cả ngày (1-31)</option>
+                    <option value="single">Import 1 ngày cụ thể</option>
+                </select>
+            </div>
+            <div class="form-field" style="flex:1;display:none" id="import-day-field">
+                <label>📅 Ngày kiểm kho</label>
+                <input type="date" id="import-ngaykiem">
+            </div>
+        </div>
+
+        <!-- Local files -->
+        <div id="import-local-area">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+                <h4>📂 Files tìm thấy</h4>
+                <button class="btn btn-secondary btn-sm" onclick="scanTonBonFiles()">
+                    <i class="bi bi-arrow-clockwise"></i> Quét lại
+                </button>
+            </div>
+            <div id="tonbon-file-list">
+                <p class="text-muted">Nhấn "Quét lại" để tìm files...</p>
+            </div>
+        </div>
+
+        <!-- Upload area -->
+        <div id="import-upload-area" style="display:none">
+            <div class="form-row" style="align-items:flex-end">
+                <div class="form-field" style="flex:2">
+                    <label>Chọn file Báo cáo tồn bồn (.xlsx, .xlsm)</label>
+                    <input type="file" id="tonbon-upload-file" accept=".xlsx,.xlsm,.xls">
+                </div>
+                <div class="form-field">
+                    <label><input type="checkbox" id="tonbon-upload-overwrite" checked> Ghi đè</label>
+                </div>
+                <div class="form-field">
+                    <button class="btn btn-primary" onclick="uploadTonBon()">📥 Import</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Preview / Import result -->
+        <div id="tonbon-import-result" style="margin-top:16px"></div>
+    </div>
+</div>
+
+<!-- Tab 3: Nhập thủ công -->
+<div class="tab-content" id="tab-manual">
+    <div class="form-section">
+        <h3><i class="bi bi-pencil-square"></i> Nhập Tồn bồn thủ công</h3>
+        <div class="form-row">
+            <div class="form-field" style="flex:1">
+                <label>📅 Ngày kiểm kho</label>
+                <input type="date" id="manual-ngaykiem">
+            </div>
+            <div class="form-field" style="flex:1">
+                <label>📦 Loại sản phẩm</label>
+                <select id="manual-loaisp" onchange="updateTrangThaiOptions()">
+                    <option>Thành phẩm</option>
+                    <option>Bán thành phẩm</option>
+                </select>
+            </div>
+            <div class="form-field" style="flex:1">
+                <label>🛢️ Số bồn</label>
+                <select id="manual-sobon"></select>
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-field" style="flex:1">
+                <label>⚖️ Số lượng (kg)</label>
+                <input type="number" id="manual-soluong" min="0" step="100" placeholder="0">
+            </div>
+            <div class="form-field" style="flex:1">
+                <label>📍 Trạng thái</label>
+                <select id="manual-trangthai"></select>
+            </div>
+            <div class="form-field" style="flex:1">
+                <label>🕐 Ca sản xuất</label>
+                <select id="manual-casx">
+                    <option>Ca 1</option>
+                    <option>Ca 2</option>
+                    <option>Ca 3</option>
+                </select>
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-field" style="flex:2">
+                <label>🏷️ Sản phẩm</label>
+                <select id="manual-sanpham"></select>
+            </div>
+            <div class="form-field" style="flex:1">
+                <label>📝 Ghi chú</label>
+                <input type="text" id="manual-ghichu" placeholder="Nhập ghi chú...">
+            </div>
+        </div>
+        <button class="btn btn-primary" onclick="saveTonBon()" style="margin-top:12px">
+            <i class="bi bi-save"></i> Lưu Tồn bồn
+        </button>
+        <div id="manual-result" style="margin-top:12px"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Tab switching
+    function switchTonBonTab(e, tabId) {
+        document.querySelectorAll('#tab-list,#tab-import,#tab-manual').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.tab-nav .tab-btn').forEach(b => b.classList.remove('active'));
+        document.getElementById(tabId).classList.add('active');
+        e.currentTarget.classList.add('active');
+    }
+
+    // ==================== Init ====================
+    async function initPage() {
+        // Set default date to latest
+        const latest = await api.get('/api/tonbon/latest-date');
+        if (latest && latest.latest_date) {
+            document.getElementById('filter-ngay').value = latest.latest_date;
+        }
+
+        // Set manual date
+        const yesterday = new Date();
+        yesterday.setDate(yesterday.getDate() - 1);
+        document.getElementById('manual-ngaykiem').value = yesterday.toISOString().split('T')[0];
+        document.getElementById('import-ngaykiem').value = yesterday.toISOString().split('T')[0];
+
+        // Populate bồn options
+        const bonSelect = document.getElementById('manual-sobon');
+        for (let i = 1; i <= 134; i++) {
+            bonSelect.innerHTML += `<option value="Bồn ${i}">Bồn ${i}</option>`;
+        }
+
+        // Populate products
+        const products = await api.get('/api/sanpham/lookup');
+        if (products && products.data) {
+            const spSelect = document.getElementById('manual-sanpham');
+            spSelect.innerHTML = '<option value="">-- Chọn sản phẩm --</option>';
+            products.data.forEach(p => {
+                spSelect.innerHTML += `<option value="${p.ID}">${p['Code cám']} | ${p['Tên cám']}</option>`;
+            });
+        }
+
+        updateTrangThaiOptions();
+        loadTonBonData();
+    }
+
+    function updateTrangThaiOptions() {
+        const loai = document.getElementById('manual-loaisp').value;
+        const select = document.getElementById('manual-trangthai');
+        select.innerHTML = '';
+        const options = loai === 'Bán thành phẩm'
+            ? ['Chờ ép viên', 'Đang xử lý']
+            : ['Chờ đóng bao 25kg', 'Chờ đóng bao 50kg', 'Chờ xe Silo', 'Đang xử lý'];
+        options.forEach(o => select.innerHTML += `<option>${o}</option>`);
+    }
+
+    // ==================== Data Table ====================
+    async function loadTonBonData() {
+        const ngay = document.getElementById('filter-ngay').value;
+        const loai = document.getElementById('filter-loai').value;
+        const tt = document.getElementById('filter-trangthai').value;
+        const ca = document.getElementById('filter-ca').value;
+
+        let params = `?per_page=200`;
+        if (ngay) params += `&ngay=${ngay}`;
+        if (loai !== 'Tất cả') params += `&loai=${encodeURIComponent(loai)}`;
+        if (tt !== 'Tất cả') params += `&trang_thai=${encodeURIComponent(tt)}`;
+        if (ca !== 'Tất cả') params += `&ca=${encodeURIComponent(ca)}`;
+
+        const result = await api.get(`/api/tonbon${params}`);
+        const container = document.getElementById('tonbon-table');
+
+        if (!result || !result.data || result.data.length === 0) {
+            container.innerHTML = '<p class="text-muted">Không có dữ liệu</p>';
+            loadStats(ngay);
+            return;
+        }
+
+        const cols = ['ID', 'Mã tồn bồn', 'Ngày kiểm kho', 'Code cám', 'Tên cám',
+            'Loại sản phẩm', 'Số lượng (kg)', 'Số bồn', 'Trạng thái',
+            'Ca sản xuất', 'Ghi chú', 'Người tạo'];
+
+        let html = `<p class="text-muted" style="font-size:12px">Tổng: ${result.total} dòng</p>`;
+        html += '<div style="max-height:500px;overflow:auto"><table class="data-table" style="font-size:12px"><thead><tr>';
+        cols.forEach(c => html += `<th>${c}</th>`);
+        html += '<th>Xóa</th>';
+        html += '</tr></thead><tbody>';
+
+        result.data.forEach(row => {
+            html += '<tr>';
+            cols.forEach(c => {
+                let val = row[c];
+                if (c === 'Số lượng (kg)' && typeof val === 'number') val = val.toLocaleString();
+                html += `<td>${val ?? ''}</td>`;
+            });
+            html += `<td><button class="btn btn-danger btn-sm" onclick="deleteTonBon(${row.ID})" style="padding:2px 8px;font-size:11px">🗑️</button></td>`;
+            html += '</tr>';
+        });
+        html += '</tbody></table></div>';
+        container.innerHTML = html;
+
+        loadStats(ngay);
+    }
+
+    async function loadStats(ngay) {
+        let params = ngay ? `?ngay=${ngay}` : '';
+        const stats = await api.get(`/api/tonbon/stats${params}`);
+        const container = document.getElementById('tonbon-stats');
+
+        if (!stats || !stats.success) {
+            container.innerHTML = '<p class="text-muted">Không tải được thống kê</p>';
+            return;
+        }
+
+        const tp = stats.thanh_pham;
+        const btp = stats.ban_thanh_pham;
+
+        container.innerHTML = `
+            <div style="flex:1;padding:12px;background:white;border-radius:8px;border-left:4px solid #28a745">
+                <h5>📦 Thành phẩm (Bồn 99-134)</h5>
+                ${tp.tong_kg > 0
+                ? `<p style="font-size:20px;font-weight:bold;margin:4px 0">${tp.tong_kg.toLocaleString()} kg</p><p class="text-muted">${tp.so_dong} dòng</p>`
+                : '<p class="text-muted">Không có dữ liệu</p>'}
+            </div>
+            <div style="flex:1;padding:12px;background:white;border-radius:8px;border-left:4px solid #ffc107">
+                <h5>🔄 Bán thành phẩm (Bồn 86-98)</h5>
+                ${btp.tong_kg > 0
+                ? `<p style="font-size:20px;font-weight:bold;margin:4px 0">${btp.tong_kg.toLocaleString()} kg</p><p class="text-muted">${btp.so_dong} dòng</p>`
+                : '<p class="text-muted">Không có dữ liệu</p>'}
+            </div>`;
+    }
+
+    async function deleteTonBon(id) {
+        if (!confirm('Xóa dòng này?')) return;
+        const result = await api.post('/api/tonbon/delete', { id: id });
+        if (result && result.success) {
+            showToast('Đã xóa', 'success');
+            loadTonBonData();
+        } else {
+            showToast('Lỗi xóa', 'error');
+        }
+    }
+
+    // ==================== Import ====================
+    function toggleImportSource() {
+        const source = document.getElementById('import-source').value;
+        document.getElementById('import-local-area').style.display = source === 'local' ? 'block' : 'none';
+        document.getElementById('import-upload-area').style.display = source === 'upload' ? 'block' : 'none';
+    }
+
+    function toggleImportMode() {
+        const mode = document.getElementById('import-mode').value;
+        document.getElementById('import-day-field').style.display = mode === 'single' ? 'block' : 'none';
+    }
+
+    async function scanTonBonFiles() {
+        const result = await api.get('/api/tonbon/scan-files');
+        const container = document.getElementById('tonbon-file-list');
+
+        if (!result || !result.files || result.files.length === 0) {
+            container.innerHTML = '<p class="text-muted">📭 Không tìm thấy file báo cáo tồn bồn</p>';
+            return;
+        }
+
+        let html = '';
+        result.files.forEach(f => {
+            html += `<div style="display:flex;align-items:center;gap:12px;padding:8px 12px;background:#f8f9fa;border-radius:6px;margin-bottom:4px">
+                <span style="flex:3;font-weight:bold">📄 ${f.filename} <span class="text-muted" style="font-size:11px">(${f.size_kb} KB)</span></span>
+                <button class="btn btn-secondary btn-sm" onclick="previewTonBon('${f.filepath.replace(/\\/g, '\\\\')}')">👁️ Preview</button>
+                <button class="btn btn-primary btn-sm" onclick="importTonBon('${f.filepath.replace(/\\/g, '\\\\')}')">📥 Import</button>
+            </div>`;
+        });
+        container.innerHTML = html;
+    }
+
+    async function previewTonBon(filepath) {
+        const mode = document.getElementById('import-mode').value;
+        const ngay = document.getElementById('import-ngaykiem').value;
+        const day = ngay ? new Date(ngay).getDate() : 1;
+
+        const statusEl = document.getElementById('tonbon-import-result');
+        statusEl.innerHTML = '<p class="text-muted">Đang đọc dữ liệu...</p>';
+
+        const result = await api.post('/api/tonbon/preview', { filepath, mode, day });
+
+        if (!result || !result.success || result.total_rows === 0) {
+            statusEl.innerHTML = `<p style="color:orange">${result?.message || 'Không có dữ liệu'}</p>`;
+            return;
+        }
+
+        let html = `<div style="padding:12px;background:#e8f5e9;border-radius:8px">
+            <strong>✅ Đọc được ${result.total_rows} dòng — Tổng: ${(result.total_kg || 0).toLocaleString()} kg</strong>`;
+
+        if (result.stats) {
+            html += '<table class="data-table" style="font-size:12px;margin-top:8px"><thead><tr><th>Ngày</th><th>Tổng kg</th></tr></thead><tbody>';
+            result.stats.forEach(s => html += `<tr><td>${s['Ngày']}</td><td>${s['Tổng kg'].toLocaleString()}</td></tr>`);
+            html += '</tbody></table>';
+        }
+
+        if (result.data && result.data.length > 0) {
+            const cols = Object.keys(result.data[0]);
+            html += '<table class="data-table" style="font-size:11px;margin-top:8px"><thead><tr>';
+            cols.forEach(c => html += `<th>${c}</th>`);
+            html += '</tr></thead><tbody>';
+            result.data.slice(0, 30).forEach(row => {
+                html += '<tr>';
+                cols.forEach(c => {
+                    let val = row[c];
+                    if (typeof val === 'number') val = val.toLocaleString();
+                    html += `<td>${val ?? ''}</td>`;
+                });
+                html += '</tr>';
+            });
+            html += '</tbody></table>';
+            if (result.data.length > 30) html += `<p class="text-muted">Hiển thị 30/${result.total_rows}</p>`;
+        }
+
+        html += '</div>';
+        statusEl.innerHTML = html;
+    }
+
+    async function importTonBon(filepath) {
+        const mode = document.getElementById('import-mode').value;
+        const loai = document.getElementById('import-loaisp').value;
+        const ngay = document.getElementById('import-ngaykiem').value;
+
+        if (mode === 'single' && !ngay) {
+            showToast('Chọn ngày kiểm kho', 'warning');
+            return;
+        }
+        if (!confirm(`Import ${mode === 'all' ? 'TẤT CẢ ngày' : `ngày ${ngay}`}?`)) return;
+
+        const statusEl = document.getElementById('tonbon-import-result');
+        statusEl.innerHTML = '<p class="text-muted">Đang import...</p>';
+
+        const result = await api.post('/api/tonbon/import', {
+            filepath, mode, ngay_kiem: ngay, loai_sp: loai, overwrite: true
+        });
+
+        if (result && result.success > 0) {
+            let msg = `✅ Import thành công <strong>${result.success}</strong> dòng`;
+            if (result.days_imported) msg += ` từ <strong>${result.days_imported}</strong> ngày`;
+            if (result.not_found && result.not_found.length > 0) {
+                msg += `<br>⚠️ ${result.not_found.length} mã không tìm thấy: ${result.not_found.slice(0, 10).join(', ')}`;
+            }
+            statusEl.innerHTML = `<div style="padding:12px;background:#d4edda;border-radius:6px">${msg}</div>`;
+            showToast(`Import thành công ${result.success} dòng`, 'success');
+            loadTonBonData();
+        } else {
+            const errMsg = result?.not_found && result.not_found.length > 0
+                ? `${result.not_found.length} mã không tìm thấy`
+                : (result?.errors || ['Lỗi import']).join(', ');
+            statusEl.innerHTML = `<div style="padding:12px;background:#f8d7da;border-radius:6px">❌ ${errMsg}</div>`;
+        }
+    }
+
+    async function uploadTonBon() {
+        const file = document.getElementById('tonbon-upload-file').files[0];
+        if (!file) { showToast('Chọn file trước', 'warning'); return; }
+
+        const mode = document.getElementById('import-mode').value;
+        const loai = document.getElementById('import-loaisp').value;
+        const ngay = document.getElementById('import-ngaykiem').value;
+        const overwrite = document.getElementById('tonbon-upload-overwrite').checked;
+
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('mode', mode);
+        formData.append('loai_sp', loai);
+        formData.append('ngay_kiem', ngay);
+        formData.append('overwrite', overwrite.toString());
+
+        const statusEl = document.getElementById('tonbon-import-result');
+        statusEl.innerHTML = '<p class="text-muted">Đang upload và import...</p>';
+
+        const result = await api.upload('/api/tonbon/upload-import', formData);
+
+        if (result && result.success > 0) {
+            let msg = `✅ Import thành công ${result.success} dòng`;
+            if (result.not_found && result.not_found.length > 0) {
+                msg += `<br>⚠️ ${result.not_found.length} mã không tìm thấy: ${result.not_found.join(', ')}`;
+            }
+            statusEl.innerHTML = `<div style="padding:12px;background:#d4edda;border-radius:6px">${msg}</div>`;
+            showToast(`Import thành công`, 'success');
+            loadTonBonData();
+        } else {
+            statusEl.innerHTML = `<div style="padding:12px;background:#f8d7da;border-radius:6px">❌ ${result?.errors?.join(', ') || 'Lỗi'}</div>`;
+        }
+    }
+
+    // ==================== Manual Entry ====================
+    async function saveTonBon() {
+        const id_sp = document.getElementById('manual-sanpham').value;
+        const so_luong = parseFloat(document.getElementById('manual-soluong').value) || 0;
+        const ngay = document.getElementById('manual-ngaykiem').value;
+
+        if (!id_sp || so_luong <= 0) {
+            showToast('Chọn sản phẩm và nhập số lượng > 0', 'warning');
+            return;
+        }
+
+        const result = await api.post('/api/tonbon/create', {
+            id_sanpham: id_sp,
+            so_luong: so_luong,
+            so_bon: document.getElementById('manual-sobon').value,
+            loai_sp: document.getElementById('manual-loaisp').value,
+            trang_thai: document.getElementById('manual-trangthai').value,
+            ca_sx: document.getElementById('manual-casx').value,
+            ngay_kiem: ngay,
+            ghi_chu: document.getElementById('manual-ghichu').value
+        });
+
+        const statusEl = document.getElementById('manual-result');
+        if (result && result.success) {
+            statusEl.innerHTML = `<div style="padding:8px;background:#d4edda;border-radius:4px">✅ ${result.message}</div>`;
+            showToast(result.message, 'success');
+            document.getElementById('manual-soluong').value = '';
+            document.getElementById('manual-ghichu').value = '';
+            loadTonBonData();
+        } else {
+            statusEl.innerHTML = `<div style="padding:8px;background:#f8d7da;border-radius:4px">❌ ${result?.message || 'Lỗi'}</div>`;
+        }
+    }
+
+    // Init
+    initPage();
+</script>
+{% endblock %}

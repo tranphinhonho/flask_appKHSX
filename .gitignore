@@ -1,0 +1,38 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Virtual environment
+venv/
+env/
+.env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Uploads
+uploads/
+
+# Database
+*.db
+*.sqlite3
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Byte-compiled
+*.pyc
+
+# Distribution
+dist/
+build/
+*.egg-info/
+
+# Credentials
+credentials.bat

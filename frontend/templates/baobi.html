@@ -1,0 +1,413 @@
+{% extends "base.html" %}
+{% block title %}Bao bì{% endblock %}
+
+{% block content %}
+<h2><i class="bi bi-box2"></i> Bao bì</h2>
+<p class="text-muted">Quản lý tồn kho bao bì</p>
+
+<!-- Tabs -->
+<div class="tab-nav">
+    <button class="tab-btn active" onclick="switchBBTab(event,'tab-bagstock')">📦 Tồn kho từ Email</button>
+    <button class="tab-btn" onclick="switchBBTab(event,'tab-warning')">🚨 Cảnh báo</button>
+    <button class="tab-btn" onclick="switchBBTab(event,'tab-update')">✍️ Cập nhật</button>
+    <button class="tab-btn" onclick="switchBBTab(event,'tab-history')">📋 Lịch sử</button>
+</div>
+
+<!-- Tab 1: BagStock từ Email -->
+<div class="tab-content active" id="tab-bagstock">
+    <div class="form-section">
+        <h3><i class="bi bi-envelope"></i> Tồn kho bao bì từ Email</h3>
+        <p class="text-muted">Dữ liệu import từ file DAILY STOCK EMPTY BAG REPORT</p>
+
+        <div class="form-row" style="align-items:flex-end;margin-bottom:16px">
+            <div class="form-field" style="flex:1">
+                <label>📅 Chọn ngày xem</label>
+                <input type="date" id="bagstock-ngay" onchange="loadBagStock()">
+            </div>
+            <div class="form-field" style="flex:2">
+                <label>🔍 Tìm kiếm tên cám</label>
+                <input type="text" id="bagstock-search" placeholder="Nhập tên cám..." oninput="loadBagStock()">
+            </div>
+            <div class="form-field">
+                <button class="btn btn-secondary btn-sm" onclick="loadBagStock()">🔄 Làm mới</button>
+            </div>
+        </div>
+
+        <!-- Vật nuôi filter buttons -->
+        <div style="margin-bottom:12px">
+            <label style="font-size:12px;font-weight:600;margin-bottom:6px;display:block">🐾 Vật nuôi</label>
+            <div id="vatnuoi-buttons" style="display:flex;gap:6px;flex-wrap:wrap"></div>
+        </div>
+
+        <!-- Metrics -->
+        <div id="bagstock-metrics" style="display:flex;gap:16px;margin-bottom:16px"></div>
+
+        <!-- Table -->
+        <div id="bagstock-table">
+            <p class="text-muted">Đang tải...</p>
+        </div>
+    </div>
+</div>
+
+<!-- Tab 2: Cảnh báo -->
+<div class="tab-content" id="tab-warning">
+    <div class="form-section">
+        <h3><i class="bi bi-exclamation-triangle"></i> Cảnh báo tồn kho bao bì</h3>
+
+        <div class="form-row" style="align-items:flex-end;margin-bottom:16px">
+            <div class="form-field" style="flex:1">
+                <label>📅 Ngày kiểm tra</label>
+                <input type="date" id="warning-ngay">
+            </div>
+            <div class="form-field">
+                <button class="btn btn-primary" onclick="checkWarning()">🔍 Kiểm tra tồn kho</button>
+            </div>
+        </div>
+
+        <!-- Warning summary -->
+        <div id="warning-summary" style="display:flex;gap:16px;margin-bottom:16px;flex-wrap:wrap"></div>
+
+        <!-- Warning details -->
+        <div id="warning-details"></div>
+    </div>
+</div>
+
+<!-- Tab 3: Cập nhật thủ công -->
+<div class="tab-content" id="tab-update">
+    <div class="form-section">
+        <h3><i class="bi bi-pencil-square"></i> Cập nhật tồn kho bao bì</h3>
+
+        <div class="form-row" style="align-items:flex-end;margin-bottom:16px">
+            <div class="form-field" style="flex:1">
+                <label>📅 Ngày cập nhật</label>
+                <input type="date" id="update-ngay">
+            </div>
+            <div class="form-field">
+                <button class="btn btn-secondary" onclick="tinhNhuCau()">🤖 Tính nhu cầu từ Packing</button>
+            </div>
+        </div>
+
+        <div id="nhu-cau-info" style="margin-bottom:12px"></div>
+
+        <!-- Manual entries -->
+        <div id="manual-entries">
+            <table class="data-table" style="font-size:12px">
+                <thead>
+                    <tr>
+                        <th>Loại bao</th>
+                        <th>Kích cỡ (kg)</th>
+                        <th>Tồn kho hiện tại</th>
+                        <th>Nhu cầu dự kiến</th>
+                        <th>Ghi chú</th>
+                        <th>Thao tác</th>
+                    </tr>
+                </thead>
+                <tbody id="entry-rows">
+                    <tr>
+                        <td><select class="entry-loai">
+                                <option>Bao PP</option>
+                                <option>Bao PE</option>
+                                <option>Bao Kraft</option>
+                                <option>Bao Jumbo</option>
+                            </select></td>
+                        <td><select class="entry-kichco">
+                                <option>50</option>
+                                <option>40</option>
+                                <option>25</option>
+                                <option>20</option>
+                                <option>10</option>
+                                <option>5</option>
+                            </select></td>
+                        <td><input type="number" class="entry-tonkho" min="0" value="0" style="width:100px"></td>
+                        <td><input type="number" class="entry-nhucau" min="0" value="0" style="width:100px"></td>
+                        <td><input type="text" class="entry-ghichu" placeholder="..." style="width:150px"></td>
+                        <td><button class="btn btn-danger btn-sm" onclick="this.closest('tr').remove()"
+                                style="padding:2px 8px">✕</button></td>
+                    </tr>
+                </tbody>
+            </table>
+            <button class="btn btn-secondary btn-sm" onclick="addEntryRow()" style="margin-top:8px">+ Thêm dòng</button>
+        </div>
+
+        <button class="btn btn-primary" onclick="saveBaoBi()" style="margin-top:12px">
+            <i class="bi bi-save"></i> Lưu tồn kho
+        </button>
+        <div id="update-result" style="margin-top:12px"></div>
+    </div>
+</div>
+
+<!-- Tab 4: Lịch sử -->
+<div class="tab-content" id="tab-history">
+    <div class="form-section">
+        <h3><i class="bi bi-clock-history"></i> Lịch sử tồn kho bao bì</h3>
+        <div id="history-table">
+            <p class="text-muted">Đang tải...</p>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function switchBBTab(e, tabId) {
+        document.querySelectorAll('#tab-bagstock,#tab-warning,#tab-update,#tab-history').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.tab-nav .tab-btn').forEach(b => b.classList.remove('active'));
+        document.getElementById(tabId).classList.add('active');
+        e.currentTarget.classList.add('active');
+
+        if (tabId === 'tab-history') loadHistory();
+    }
+
+    // ==================== Init ====================
+    let _selectedVN = 'Tất cả';
+
+    // Vật nuôi mapping & colors
+    const VN_MAP = { H: 'HEO', G: 'GÀ', B: 'BÒ', V: 'VỊT', C: 'CÚT', D: 'DÊ' };
+    const VN_COLORS = { H: '#FF6B6B', G: '#4ECDC4', B: '#45B7D1', V: '#96CEB4', C: '#FFEAA7', D: '#DDA0DD' };
+
+    function buildVatNuoiButtons() {
+        const container = document.getElementById('vatnuoi-buttons');
+        let html = `<button class="btn btn-sm ${_selectedVN === 'Tất cả' ? 'btn-primary' : 'btn-secondary'}"
+            onclick="filterVN('Tất cả')" style="font-size:11px">📦 Tất cả</button>`;
+        Object.entries(VN_MAP).forEach(([code, label]) => {
+            const active = _selectedVN === code;
+            html += `<button class="btn btn-sm ${active ? 'btn-primary' : 'btn-secondary'}"
+                onclick="filterVN('${code}')" style="font-size:11px;${active ? '' : 'border-left:3px solid ' + VN_COLORS[code]}">${label}</button>`;
+        });
+        container.innerHTML = html;
+    }
+
+    function filterVN(code) {
+        _selectedVN = code;
+        buildVatNuoiButtons();
+        loadBagStock();
+    }
+
+    async function initPage() {
+        const today = new Date().toISOString().split('T')[0];
+        document.getElementById('warning-ngay').value = today;
+        document.getElementById('update-ngay').value = today;
+
+        const latest = await api.get('/api/baobi/bagstock/latest-date');
+        document.getElementById('bagstock-ngay').value = latest?.latest_date || today;
+
+        buildVatNuoiButtons();
+        loadBagStock();
+    }
+
+    // ==================== BagStock ====================
+    async function loadBagStock() {
+        const ngay = document.getElementById('bagstock-ngay').value;
+        const search = document.getElementById('bagstock-search').value;
+
+        let url = `/api/baobi/bagstock?ngay=${ngay}`;
+        if (search) url += `&search=${encodeURIComponent(search)}`;
+        if (_selectedVN !== 'Tất cả') url += `&vatnuoi=${_selectedVN}`;
+
+        const result = await api.get(url);
+        const metricsEl = document.getElementById('bagstock-metrics');
+        const tableEl = document.getElementById('bagstock-table');
+
+        if (!result || !result.data || result.data.length === 0) {
+            metricsEl.innerHTML = '';
+            tableEl.innerHTML = '<p class="text-muted">Không có dữ liệu. Hãy import file BAG REPORT từ "Nhận email".</p>';
+            return;
+        }
+
+        // Metrics
+        metricsEl.innerHTML = `
+            <div style="flex:1;padding:12px;background:#e3f2fd;border-radius:8px;text-align:center">
+                <div class="text-muted" style="font-size:11px">📦 Tổng dòng</div>
+                <div style="font-size:20px;font-weight:bold">${result.total}</div>
+            </div>
+            <div style="flex:1;padding:12px;background:#e8f5e9;border-radius:8px;text-align:center">
+                <div class="text-muted" style="font-size:11px">🏷️ Tổng số bao</div>
+                <div style="font-size:20px;font-weight:bold">${result.total_bao.toLocaleString()}</div>
+            </div>
+            <div style="flex:1;padding:12px;background:#fff3e0;border-radius:8px;text-align:center">
+                <div class="text-muted" style="font-size:11px">📐 Số kích cỡ</div>
+                <div style="font-size:20px;font-weight:bold">${result.so_kich_co}</div>
+            </div>`;
+
+        // Table
+        let html = '<div style="max-height:500px;overflow:auto"><table class="data-table" style="font-size:12px"><thead><tr>';
+        ['Tên cám', 'Vật nuôi', 'Kích cỡ', 'Số lượng bao', 'Ngày stock', 'File nguồn'].forEach(c => html += `<th>${c}</th>`);
+        html += '</tr></thead><tbody>';
+
+        result.data.forEach(row => {
+            const vnCode = row.vat_nuoi || '';
+            const vnLabel = VN_MAP[vnCode] || vnCode;
+            const vnColor = VN_COLORS[vnCode] || '#666';
+            html += `<tr>
+                <td>${row.ten_cam || ''}</td>
+                <td><span style="color:${vnColor};font-weight:bold">${vnLabel}</span></td>
+                <td>${row.kich_co || ''}</td>
+                <td>${(row.so_luong || 0).toLocaleString()}</td>
+                <td>${row.ngay_stock || ''}</td>
+                <td style="font-size:10px">${row.ten_file || ''}</td>
+            </tr>`;
+        });
+        html += '</tbody></table></div>';
+        tableEl.innerHTML = html;
+    }
+
+    // ==================== Cảnh báo ====================
+    async function checkWarning() {
+        const ngay = document.getElementById('warning-ngay').value;
+        if (!ngay) { showToast('Chọn ngày', 'warning'); return; }
+
+        const result = await api.get(`/api/baobi/canh-bao?ngay=${ngay}`);
+        const summaryEl = document.getElementById('warning-summary');
+        const detailsEl = document.getElementById('warning-details');
+
+        if (!result || !result.success || !result.data || result.data.length === 0) {
+            summaryEl.innerHTML = '';
+            detailsEl.innerHTML = '<p class="text-muted">Chưa có dữ liệu tồn kho</p>';
+            return;
+        }
+
+        const mc = result.muc_counts;
+        summaryEl.innerHTML = `
+            <div style="flex:1;padding:12px;background:#f8d7da;border-radius:8px;text-align:center">
+                <div style="font-size:16px">🚨</div><strong>${mc.muc_1}</strong><br><span class="text-muted" style="font-size:11px">Thiếu hàng</span>
+            </div>
+            <div style="flex:1;padding:12px;background:#fff3cd;border-radius:8px;text-align:center">
+                <div style="font-size:16px">⚠️</div><strong>${mc.muc_2}</strong><br><span class="text-muted" style="font-size:11px">Tồn kho thấp</span>
+            </div>
+            <div style="flex:1;padding:12px;background:#fff9c4;border-radius:8px;text-align:center">
+                <div style="font-size:16px">🟡</div><strong>${mc.muc_3}</strong><br><span class="text-muted" style="font-size:11px">Trung bình</span>
+            </div>
+            <div style="flex:1;padding:12px;background:#d4edda;border-radius:8px;text-align:center">
+                <div style="font-size:16px">✅</div><strong>${mc.muc_4}</strong><br><span class="text-muted" style="font-size:11px">An toàn</span>
+            </div>`;
+
+        // Build detail table
+        let html = '<table class="data-table" style="font-size:12px"><thead><tr>';
+        ['Kích cỡ', 'Tồn kho', 'Nhu cầu', 'Thiếu', 'Mức cảnh báo'].forEach(c => html += `<th>${c}</th>`);
+        html += '</tr></thead><tbody>';
+
+        result.data.forEach(row => {
+            let bg = '';
+            if (row.muc_canh_bao.includes('Mức 1')) bg = 'background:#f8d7da';
+            else if (row.muc_canh_bao.includes('Mức 2')) bg = 'background:#fff3cd';
+            else if (row.muc_canh_bao.includes('Mức 3')) bg = 'background:#fff9c4';
+            else bg = 'background:#d4edda';
+
+            html += `<tr style="${bg}">
+                <td><strong>Bao ${row.kich_co}kg</strong></td>
+                <td>${row.ton_kho.toLocaleString()}</td>
+                <td>${row.nhu_cau.toLocaleString()}</td>
+                <td>${row.thieu > 0 ? `<span style="color:red;font-weight:bold">-${row.thieu.toLocaleString()}</span>` : '0'}</td>
+                <td>${row.muc_canh_bao}</td>
+            </tr>`;
+        });
+        html += '</tbody></table>';
+        detailsEl.innerHTML = html;
+    }
+
+    // ==================== Cập nhật ====================
+    async function tinhNhuCau() {
+        const ngay = document.getElementById('update-ngay').value;
+        const result = await api.get(`/api/baobi/nhu-cau-packing?ngay=${ngay}`);
+
+        if (result && result.nhu_cau && Object.keys(result.nhu_cau).length > 0) {
+            let html = '<div style="padding:8px;background:#d4edda;border-radius:4px"><strong>📊 Nhu cầu dự kiến:</strong> ';
+            Object.entries(result.nhu_cau).forEach(([k, v]) => html += `${k}: <strong>${v.toLocaleString()}</strong> bao | `);
+            html += '</div>';
+            document.getElementById('nhu-cau-info').innerHTML = html;
+        } else {
+            document.getElementById('nhu-cau-info').innerHTML =
+                '<div style="padding:8px;background:#e3f2fd;border-radius:4px">ℹ️ Chưa có kế hoạch đóng bao</div>';
+        }
+    }
+
+    function addEntryRow() {
+        const tbody = document.getElementById('entry-rows');
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td><select class="entry-loai"><option>Bao PP</option><option>Bao PE</option><option>Bao Kraft</option><option>Bao Jumbo</option></select></td>
+            <td><select class="entry-kichco"><option>50</option><option>40</option><option>25</option><option>20</option><option>10</option><option>5</option></select></td>
+            <td><input type="number" class="entry-tonkho" min="0" value="0" style="width:100px"></td>
+            <td><input type="number" class="entry-nhucau" min="0" value="0" style="width:100px"></td>
+            <td><input type="text" class="entry-ghichu" placeholder="..." style="width:150px"></td>
+            <td><button class="btn btn-danger btn-sm" onclick="this.closest('tr').remove()" style="padding:2px 8px">✕</button></td>`;
+        tbody.appendChild(tr);
+    }
+
+    async function saveBaoBi() {
+        const ngay = document.getElementById('update-ngay').value;
+        const rows = document.querySelectorAll('#entry-rows tr');
+        const items = [];
+
+        rows.forEach(row => {
+            const loai = row.querySelector('.entry-loai')?.value;
+            const kich_co = row.querySelector('.entry-kichco')?.value;
+            const ton_kho = parseInt(row.querySelector('.entry-tonkho')?.value) || 0;
+            const nhu_cau = parseInt(row.querySelector('.entry-nhucau')?.value) || 0;
+            const ghi_chu = row.querySelector('.entry-ghichu')?.value || '';
+
+            if (loai && ton_kho >= 0) {
+                items.push({ loai_bao: loai, kich_co: parseInt(kich_co), ton_kho, nhu_cau, ghi_chu });
+            }
+        });
+
+        if (items.length === 0) { showToast('Không có dữ liệu', 'warning'); return; }
+
+        const result = await api.post('/api/baobi/save', { items, ngay });
+        if (result && result.success) {
+            document.getElementById('update-result').innerHTML =
+                `<div style="padding:8px;background:#d4edda;border-radius:4px">✅ ${result.message}</div>`;
+            showToast(result.message, 'success');
+        } else {
+            document.getElementById('update-result').innerHTML =
+                `<div style="padding:8px;background:#f8d7da;border-radius:4px">❌ ${result?.message || 'Lỗi'}</div>`;
+        }
+    }
+
+    // ==================== Lịch sử ====================
+    async function loadHistory() {
+        const result = await api.get('/api/baobi/history');
+        const container = document.getElementById('history-table');
+
+        if (!result || !result.data || result.data.length === 0) {
+            container.innerHTML = '<p class="text-muted">Chưa có lịch sử</p>';
+            return;
+        }
+
+        const cols = ['ID', 'Ngày kiểm tra', 'Loại bao', 'Kích cỡ (kg)',
+            'Tồn kho hiện tại', 'Nhu cầu dự kiến', 'Mức cảnh báo',
+            'Số lượng thiếu', 'Ghi chú', 'Người tạo', 'Thời gian tạo'];
+
+        let html = '<div style="max-height:500px;overflow:auto"><table class="data-table" style="font-size:12px"><thead><tr>';
+        cols.forEach(c => html += `<th>${c}</th>`);
+        html += '<th>Xóa</th></tr></thead><tbody>';
+
+        result.data.forEach(row => {
+            let bg = '';
+            const muc = row['Mức cảnh báo'] || '';
+            if (muc.includes('Mức 1')) bg = 'background:#f8d7da';
+            else if (muc.includes('Mức 2')) bg = 'background:#fff3cd';
+
+            html += `<tr style="${bg}">`;
+            cols.forEach(c => {
+                let val = row[c];
+                if (['Tồn kho hiện tại', 'Nhu cầu dự kiến', 'Số lượng thiếu'].includes(c) && typeof val === 'number')
+                    val = val.toLocaleString();
+                html += `<td>${val ?? ''}</td>`;
+            });
+            html += `<td><button class="btn btn-danger btn-sm" onclick="deleteBaoBi(${row.ID})" style="padding:2px 8px;font-size:11px">🗑️</button></td>`;
+            html += '</tr>';
+        });
+        html += '</tbody></table></div>';
+        container.innerHTML = html;
+    }
+
+    async function deleteBaoBi(id) {
+        if (!confirm('Xóa dòng này?')) return;
+        const result = await api.post('/api/baobi/delete', { id });
+        if (result && result.success) { showToast('Đã xóa', 'success'); loadHistory(); }
+    }
+
+    initPage();
+</script>
+{% endblock %}

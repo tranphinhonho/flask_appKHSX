@@ -1,0 +1,23 @@
+# Flask Core
+flask>=3.0
+flask-cors
+
+# Database
+pandas
+numpy
+openpyxl
+fsspec
+psycopg2-binary
+
+# Auth
+bcrypt
+
+# Images
+Pillow
+
+# Utilities
+pytz
+
+# Production server
+gunicorn
+waitress

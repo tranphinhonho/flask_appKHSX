@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+
+{% block title %}Quản lý Bảng - Kế hoạch Sản xuất{% endblock %}
+
+{% block content %}
+<div class="data-section">
+    <h3><i class="bi bi-database"></i> Cấu trúc Database</h3>
+    <p class="text-muted mb-2">Danh sách tất cả các bảng trong hệ thống</p>
+    
+    <div id="tables-loading" class="text-center text-muted" style="padding:40px">
+        <i class="bi bi-arrow-repeat spin"></i> Đang tải danh sách bảng...
+    </div>
+
+    <div id="tables-container" style="display:none">
+        <!-- Search -->
+        <div class="table-toolbar mb-2">
+            <div class="search-box">
+                <i class="bi bi-search"></i>
+                <input type="text" id="table-search" placeholder="Tìm bảng..." oninput="filterTables()">
+            </div>
+            <div class="toolbar-actions">
+                <span id="table-count" class="text-muted" style="font-size:12px"></span>
+            </div>
+        </div>
+
+        <div class="data-table-wrapper">
+            <table class="data-table" id="tables-list">
+                <thead>
+                    <tr>
+                        <th style="width:40px">#</th>
+                        <th>Tên bảng</th>
+                        <th style="width:100px">Số cột</th>
+                        <th style="width:100px">Số dòng</th>
+                        <th style="width:120px">Thao tác</th>
+                    </tr>
+                </thead>
+                <tbody id="tables-tbody"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Chi tiết bảng -->
+<div class="data-section" id="table-detail-section" style="display:none">
+    <h3><i class="bi bi-table"></i> Chi tiết: <span id="detail-table-name"></span></h3>
+    <div class="data-table-wrapper">
+        <table class="data-table" id="columns-table">
+            <thead>
+                <tr>
+                    <th style="width:40px">#</th>
+                    <th>Tên cột</th>
+                    <th>Kiểu dữ liệu</th>
+                </tr>
+            </thead>
+            <tbody id="columns-tbody"></tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let allTables = [];
+
+    async function loadTables() {
+        try {
+            const data = await api.get('/api/admin/tables');
+            if (data && data.tables) {
+                allTables = data.tables;
+                renderTables(allTables);
+                document.getElementById('tables-container').style.display = 'block';
+            }
+        } catch (e) {
+            showToast('Lỗi tải danh sách bảng', 'error');
+        }
+        document.getElementById('tables-loading').style.display = 'none';
+    }
+
+    function renderTables(tables) {
+        const tbody = document.getElementById('tables-tbody');
+        document.getElementById('table-count').textContent = `${tables.length} bảng`;
+
+        if (tables.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted" style="padding:20px">Không tìm thấy bảng nào</td></tr>';
+            return;
+        }
+
+        let html = '';
+        tables.forEach((t, i) => {
+            const isSystem = t.name.startsWith('tbsys_');
+            const badge = isSystem
+                ? '<span class="badge badge-system">System</span>'
+                : '<span class="badge badge-data">Data</span>';
+
+            html += `
+                <tr>
+                    <td class="text-center">${i + 1}</td>
+                    <td><strong>${t.name}</strong> ${badge}</td>
+                    <td class="text-center">${t.columns}</td>
+                    <td class="text-center">${t.rows.toLocaleString()}</td>
+                    <td class="text-center">
+                        <button class="btn btn-secondary btn-sm" onclick="viewColumns('${t.name}')">
+                            <i class="bi bi-eye"></i> Xem cột
+                        </button>
+                    </td>
+                </tr>
+            `;
+        });
+        tbody.innerHTML = html;
+    }
+
+    function filterTables() {
+        const q = document.getElementById('table-search').value.toLowerCase();
+        const filtered = allTables.filter(t => t.name.toLowerCase().includes(q));
+        renderTables(filtered);
+    }
+
+    async function viewColumns(tableName) {
+        try {
+            const data = await api.get(`/api/admin/tables/${tableName}/columns`);
+            if (data && data.columns) {
+                document.getElementById('detail-table-name').textContent = tableName;
+                const tbody = document.getElementById('columns-tbody');
+                let html = '';
+                data.columns.forEach((col, i) => {
+                    html += `
+                        <tr>
+                            <td class="text-center">${i + 1}</td>
+                            <td><strong>${col.name}</strong></td>
+                            <td><code>${col.type}</code></td>
+                        </tr>
+                    `;
+                });
+                tbody.innerHTML = html;
+                document.getElementById('table-detail-section').style.display = 'block';
+                document.getElementById('table-detail-section').scrollIntoView({ behavior: 'smooth' });
+            }
+        } catch (e) {
+            showToast('Lỗi tải chi tiết bảng', 'error');
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', loadTables);
+</script>
+{% endblock %}

@@ -1,0 +1,463 @@
+{% extends "base.html" %}
+{% block title %}Batching{% endblock %}
+
+{% block content %}
+<h2><i class="bi bi-gear"></i> Batching</h2>
+<p class="text-muted">Quản lý máy trộn cám (Mixer)</p>
+
+<!-- Tabs -->
+<div class="tab-nav">
+    <button class="tab-btn active" onclick="switchBatchTab(event,'tab-list')">📋 Danh sách</button>
+    <button class="tab-btn" onclick="switchBatchTab(event,'tab-import')">📁 Import Excel/CSV</button>
+    <button class="tab-btn" onclick="switchBatchTab(event,'tab-manual')">✍️ Nhập thủ công</button>
+</div>
+
+<!-- Tab 1: Danh sách -->
+<div class="tab-content active" id="tab-list">
+    <div class="form-section">
+        <div class="form-row" style="margin-bottom:16px;align-items:flex-end">
+            <div class="form-field" style="flex:1">
+                <label>📅 Từ ngày</label>
+                <input type="date" id="filter-from" onchange="loadBatchData()">
+            </div>
+            <div class="form-field" style="flex:1">
+                <label>📅 Đến ngày</label>
+                <input type="date" id="filter-to" onchange="loadBatchData()">
+            </div>
+            <div class="form-field" style="flex:1">
+                <label>🎯 Đích đến</label>
+                <select id="filter-dichden" onchange="loadBatchData()">
+                    <option value="Tất cả">Tất cả</option>
+                    <option>Pellet</option>
+                    <option>Packing</option>
+                </select>
+            </div>
+            <div class="form-field" style="flex:1">
+                <label>🕐 Ca</label>
+                <select id="filter-ca" onchange="loadBatchData()">
+                    <option value="Tất cả">Tất cả</option>
+                    <option>Ca 1</option>
+                    <option>Ca 2</option>
+                    <option>Ca 3</option>
+                </select>
+            </div>
+        </div>
+
+        <div id="batch-table">
+            <p class="text-muted">Đang tải...</p>
+        </div>
+
+        <!-- Stats -->
+        <div style="margin-top:20px;padding:16px;background:#f8f9fa;border-radius:8px">
+            <h4>📊 Thống kê Batching</h4>
+            <div id="batch-stats" style="display:flex;gap:16px;margin-top:8px;flex-wrap:wrap">
+                <p class="text-muted">Đang tải...</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Tab 2: Import Excel/CSV -->
+<div class="tab-content" id="tab-import">
+    <div class="form-section">
+        <h3><i class="bi bi-file-earmark-excel"></i> Import Batching từ Excel/CSV</h3>
+        <p class="text-muted">File CSV: Import từ PRODUCTION*.csv — File XLSM: Import từ file đã chạy VBA
+            TransposeReport (cột CA-CF)</p>
+
+        <div class="form-row" style="align-items:flex-end">
+            <div class="form-field" style="flex:2">
+                <label>📤 Chọn file Excel hoặc CSV</label>
+                <input type="file" id="batch-upload-file" accept=".csv,.xlsx,.xlsm">
+            </div>
+            <div class="form-field" style="flex:1">
+                <label>📅 Ngày sản xuất</label>
+                <input type="date" id="import-ngaysx">
+            </div>
+            <div class="form-field">
+                <label><input type="checkbox" id="import-overwrite"> Ghi đè</label>
+            </div>
+            <div class="form-field">
+                <button class="btn btn-secondary" onclick="previewBatchFile()">👁️ Preview</button>
+            </div>
+        </div>
+
+        <div id="batch-preview" style="margin-top:16px"></div>
+
+        <div id="batch-import-btn" style="margin-top:12px;display:none">
+            <button class="btn btn-primary" onclick="importBatchFile()" style="width:100%">
+                📥 Import vào Database
+            </button>
+        </div>
+
+        <div id="batch-import-result" style="margin-top:12px"></div>
+    </div>
+</div>
+
+<!-- Tab 3: Nhập thủ công -->
+<div class="tab-content" id="tab-manual">
+    <div class="form-section">
+        <h3><i class="bi bi-pencil-square"></i> Nhập Batching thủ công</h3>
+        <div class="form-row">
+            <div class="form-field" style="flex:1">
+                <label>📅 Ngày trộn</label>
+                <input type="date" id="manual-ngaytron">
+            </div>
+            <div class="form-field" style="flex:1">
+                <label>⚖️ Batch size (kg)</label>
+                <select id="manual-batchsize" onchange="calcLoss()">
+                    <option value="8400">8400</option>
+                    <option value="8000">8000</option>
+                </select>
+            </div>
+            <div class="form-field" style="flex:1">
+                <label>🎯 Đích đến</label>
+                <select id="manual-dichden" onchange="updateSoMay()">
+                    <option>Pellet</option>
+                    <option>Packing</option>
+                </select>
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-field" style="flex:1">
+                <label>📊 Số lượng thực tế (kg)</label>
+                <input type="number" id="manual-soluong" min="0" step="10" value="8350" oninput="calcLoss()">
+            </div>
+            <div class="form-field" style="flex:1">
+                <label>🕐 Ca sản xuất</label>
+                <select id="manual-casx">
+                    <option>Ca 1</option>
+                    <option>Ca 2</option>
+                    <option>Ca 3</option>
+                </select>
+            </div>
+            <div class="form-field" style="flex:1">
+                <label>🔧 Số máy</label>
+                <select id="manual-somay"></select>
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-field" style="flex:2">
+                <label>🏷️ Sản phẩm</label>
+                <select id="manual-sanpham"></select>
+            </div>
+            <div class="form-field" style="flex:1">
+                <label>📝 Ghi chú</label>
+                <input type="text" id="manual-ghichu" placeholder="Nhập ghi chú...">
+            </div>
+        </div>
+
+        <!-- Loss display -->
+        <div id="loss-info" style="margin-top:12px;display:flex;gap:16px">
+            <div style="flex:1;padding:10px;background:#f8f9fa;border-radius:6px;text-align:center">
+                <div class="text-muted" style="font-size:11px">Loss (kg)</div>
+                <div id="loss-kg" style="font-size:18px;font-weight:bold">50</div>
+            </div>
+            <div style="flex:1;padding:10px;background:#f8f9fa;border-radius:6px;text-align:center">
+                <div class="text-muted" style="font-size:11px">Loss (%)</div>
+                <div id="loss-pct" style="font-size:18px;font-weight:bold">0.60%</div>
+            </div>
+            <div style="flex:1;padding:10px;border-radius:6px;text-align:center" id="loss-status">
+                ✅ Bình thường
+            </div>
+        </div>
+
+        <button class="btn btn-primary" onclick="saveBatching()" style="margin-top:12px">
+            <i class="bi bi-save"></i> Lưu Batching
+        </button>
+        <div id="manual-result" style="margin-top:12px"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let _tmpPath = null;
+    let _fileType = null;
+
+    function switchBatchTab(e, tabId) {
+        document.querySelectorAll('#tab-list,#tab-import,#tab-manual').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.tab-nav .tab-btn').forEach(b => b.classList.remove('active'));
+        document.getElementById(tabId).classList.add('active');
+        e.currentTarget.classList.add('active');
+    }
+
+    // ==================== Init ====================
+    async function initPage() {
+        const latest = await api.get('/api/batching/latest-date');
+        if (latest && latest.latest_date) {
+            document.getElementById('filter-from').value = latest.latest_date;
+            document.getElementById('filter-to').value = latest.latest_date;
+        }
+
+        const today = new Date().toISOString().split('T')[0];
+        document.getElementById('manual-ngaytron').value = today;
+        document.getElementById('import-ngaysx').value = today;
+
+        // Load products
+        const products = await api.get('/api/sanpham/lookup');
+        if (products && products.data) {
+            const sel = document.getElementById('manual-sanpham');
+            sel.innerHTML = '<option value="">-- Chọn sản phẩm --</option>';
+            products.data.forEach(p => {
+                sel.innerHTML += `<option value="${p.ID}">${p['Code cám']} | ${p['Tên cám']}</option>`;
+            });
+        }
+
+        updateSoMay();
+        calcLoss();
+        loadBatchData();
+    }
+
+    function updateSoMay() {
+        const dd = document.getElementById('manual-dichden').value;
+        const sel = document.getElementById('manual-somay');
+        sel.innerHTML = '';
+        if (dd === 'Pellet') {
+            for (let i = 1; i <= 7; i++) sel.innerHTML += `<option>Pellet ${i}</option>`;
+        } else {
+            sel.innerHTML = '<option>Packing 3</option>';
+        }
+    }
+
+    function calcLoss() {
+        const bs = parseInt(document.getElementById('manual-batchsize').value) || 8400;
+        const sl = parseFloat(document.getElementById('manual-soluong').value) || 0;
+        const lossKg = bs - sl;
+        const lossPct = bs > 0 ? ((lossKg / bs) * 100) : 0;
+
+        document.getElementById('loss-kg').textContent = lossKg.toLocaleString() + ' kg';
+        document.getElementById('loss-pct').textContent = lossPct.toFixed(2) + '%';
+
+        const statusEl = document.getElementById('loss-status');
+        if (lossPct > 2) {
+            statusEl.innerHTML = '⚠️ Loss cao!';
+            statusEl.style.background = '#f8d7da';
+        } else if (lossPct > 1) {
+            statusEl.innerHTML = '⚡ Loss trung bình';
+            statusEl.style.background = '#fff3cd';
+        } else {
+            statusEl.innerHTML = '✅ Bình thường';
+            statusEl.style.background = '#d4edda';
+        }
+    }
+
+    // ==================== Data Table ====================
+    async function loadBatchData() {
+        const from = document.getElementById('filter-from').value;
+        const to = document.getElementById('filter-to').value;
+        const dd = document.getElementById('filter-dichden').value;
+        const ca = document.getElementById('filter-ca').value;
+
+        let params = '?per_page=200';
+        if (from) params += `&date_from=${from}`;
+        if (to) params += `&date_to=${to}`;
+        if (dd !== 'Tất cả') params += `&dich_den=${encodeURIComponent(dd)}`;
+        if (ca !== 'Tất cả') params += `&ca=${encodeURIComponent(ca)}`;
+
+        const result = await api.get(`/api/batching${params}`);
+        const container = document.getElementById('batch-table');
+
+        if (!result || !result.data || result.data.length === 0) {
+            container.innerHTML = '<p class="text-muted">Không có dữ liệu</p>';
+            loadStats(from, to);
+            return;
+        }
+
+        const cols = ['ID', 'Mã mixer', 'Ngày trộn', 'Code cám', 'Tên cám',
+            'Batch size', 'Số lượng thực tế', 'Loss (kg)', 'Loss (%)',
+            'Đích đến', 'Số máy', 'Ca sản xuất', 'Ghi chú', 'Người tạo'];
+
+        let html = `<p class="text-muted" style="font-size:12px">Tổng: ${result.total} dòng</p>`;
+        html += '<div style="max-height:500px;overflow:auto"><table class="data-table" style="font-size:12px"><thead><tr>';
+        cols.forEach(c => html += `<th>${c}</th>`);
+        html += '<th>Xóa</th></tr></thead><tbody>';
+
+        result.data.forEach(row => {
+            html += '<tr>';
+            cols.forEach(c => {
+                let val = row[c];
+                if (['Batch size', 'Số lượng thực tế', 'Loss (kg)'].includes(c) && typeof val === 'number')
+                    val = val.toLocaleString();
+                if (c === 'Loss (%)' && val != null) {
+                    let num = parseFloat(val);
+                    val = !isNaN(num) ? num.toFixed(4) + '%' : val;
+                }
+                html += `<td>${val ?? ''}</td>`;
+            });
+            html += `<td><button class="btn btn-danger btn-sm" onclick="deleteBatch(${row.ID})" style="padding:2px 8px;font-size:11px">🗑️</button></td>`;
+            html += '</tr>';
+        });
+        html += '</tbody></table></div>';
+        container.innerHTML = html;
+
+        loadStats(from, to);
+    }
+
+    async function loadStats(from, to) {
+        let params = '';
+        if (from) params += `?date_from=${from}`;
+        if (to) params += `${params ? '&' : '?'}date_to=${to}`;
+
+        const result = await api.get(`/api/batching/stats${params}`);
+        const container = document.getElementById('batch-stats');
+
+        if (!result || !result.stats || result.stats.total_batches === 0) {
+            container.innerHTML = '<p class="text-muted">Chưa có dữ liệu</p>';
+            return;
+        }
+
+        const s = result.stats;
+        container.innerHTML = `
+            <div style="flex:1;padding:12px;background:white;border-radius:8px;border-left:4px solid #007bff;text-align:center">
+                <div class="text-muted" style="font-size:11px">Tổng code cám</div>
+                <div style="font-size:20px;font-weight:bold">${s.total_batches.toLocaleString()}</div>
+            </div>
+            <div style="flex:1;padding:12px;background:white;border-radius:8px;border-left:4px solid #28a745;text-align:center">
+                <div class="text-muted" style="font-size:11px">Tổng đầu vào</div>
+                <div style="font-size:20px;font-weight:bold">${s.total_input.toLocaleString()} kg</div>
+            </div>
+            <div style="flex:1;padding:12px;background:white;border-radius:8px;border-left:4px solid #17a2b8;text-align:center">
+                <div class="text-muted" style="font-size:11px">Tổng đầu ra</div>
+                <div style="font-size:20px;font-weight:bold">${s.total_output.toLocaleString()} kg</div>
+            </div>
+            <div style="flex:1;padding:12px;background:white;border-radius:8px;border-left:4px solid ${s.avg_loss_percent > 2 ? '#dc3545' : '#ffc107'};text-align:center">
+                <div class="text-muted" style="font-size:11px">TB Loss</div>
+                <div style="font-size:20px;font-weight:bold">${s.avg_loss_percent}%</div>
+            </div>`;
+    }
+
+    async function deleteBatch(id) {
+        if (!confirm('Xóa dòng này?')) return;
+        const result = await api.post('/api/batching/delete', { id });
+        if (result && result.success) {
+            showToast('Đã xóa', 'success');
+            loadBatchData();
+        }
+    }
+
+    // ==================== Import ====================
+    async function previewBatchFile() {
+        const file = document.getElementById('batch-upload-file').files[0];
+        if (!file) { showToast('Chọn file trước', 'warning'); return; }
+
+        const formData = new FormData();
+        formData.append('file', file);
+
+        document.getElementById('batch-preview').innerHTML = '<p class="text-muted">Đang đọc...</p>';
+        document.getElementById('batch-import-btn').style.display = 'none';
+
+        const result = await api.upload('/api/batching/upload-preview', formData);
+
+        if (!result || !result.success) {
+            document.getElementById('batch-preview').innerHTML =
+                `<div style="padding:8px;background:#f8d7da;border-radius:4px">❌ ${result?.message || 'Lỗi'}</div>`;
+            return;
+        }
+
+        _tmpPath = result.tmp_path;
+        _fileType = result.type;
+
+        let html = `<div style="padding:8px;background:#d4edda;border-radius:4px">
+            ✅ ${result.type.toUpperCase()} — ${result.total_rows} dòng — File: ${result.filename}
+        </div>`;
+
+        if (result.type === 'csv' && result.data) {
+            html += '<table class="data-table" style="font-size:10px;margin-top:8px"><tbody>';
+            result.data.forEach(row => {
+                html += '<tr>';
+                row.forEach(v => html += `<td>${v ?? ''}</td>`);
+                html += '</tr>';
+            });
+            html += '</tbody></table>';
+        } else if (result.data) {
+            const cols = Object.keys(result.data[0]);
+            html += '<table class="data-table" style="font-size:11px;margin-top:8px"><thead><tr>';
+            cols.forEach(c => html += `<th>${c}</th>`);
+            html += '</tr></thead><tbody>';
+            result.data.slice(0, 30).forEach(row => {
+                html += '<tr>';
+                cols.forEach(c => {
+                    let v = row[c];
+                    if (typeof v === 'number') v = v.toLocaleString();
+                    html += `<td>${v ?? ''}</td>`;
+                });
+                html += '</tr>';
+            });
+            html += '</tbody></table>';
+        }
+
+        document.getElementById('batch-preview').innerHTML = html;
+        document.getElementById('batch-import-btn').style.display = 'block';
+    }
+
+    async function importBatchFile() {
+        if (!_tmpPath) { showToast('Preview file trước', 'warning'); return; }
+
+        const ngay = document.getElementById('import-ngaysx').value;
+        const overwrite = document.getElementById('import-overwrite').checked;
+
+        document.getElementById('batch-import-result').innerHTML = '<p class="text-muted">Đang import...</p>';
+
+        const result = await api.post('/api/batching/import', {
+            tmp_path: _tmpPath,
+            file_type: _fileType,
+            ngay_san_xuat: ngay,
+            overwrite: overwrite
+        });
+
+        if (result && result.success > 0) {
+            let msg = `✅ Import thành công <strong>${result.success}</strong> sản phẩm`;
+            if (result.not_found && result.not_found.length > 0) {
+                msg += `<br>⚠️ ${result.not_found.length} mã không tìm thấy: ${result.not_found.slice(0, 10).join(', ')}`;
+            }
+            document.getElementById('batch-import-result').innerHTML =
+                `<div style="padding:12px;background:#d4edda;border-radius:6px">${msg}</div>`;
+            showToast(`Import thành công ${result.success} SP`, 'success');
+            document.getElementById('batch-import-btn').style.display = 'none';
+            _tmpPath = null;
+            loadBatchData();
+        } else if (result && result.skipped) {
+            document.getElementById('batch-import-result').innerHTML =
+                `<div style="padding:12px;background:#fff3cd;border-radius:6px">⚠️ Đã import trước đó. Tick "Ghi đè" để import lại.</div>`;
+        } else {
+            document.getElementById('batch-import-result').innerHTML =
+                `<div style="padding:12px;background:#f8d7da;border-radius:6px">❌ ${result?.errors?.join(', ') || 'Lỗi import'}</div>`;
+        }
+    }
+
+    // ==================== Manual ====================
+    async function saveBatching() {
+        const id_sp = document.getElementById('manual-sanpham').value;
+        const sl = parseFloat(document.getElementById('manual-soluong').value) || 0;
+
+        if (!id_sp || sl <= 0) {
+            showToast('Chọn sản phẩm và nhập số lượng > 0', 'warning');
+            return;
+        }
+
+        const result = await api.post('/api/batching/create', {
+            id_sanpham: id_sp,
+            batch_size: parseInt(document.getElementById('manual-batchsize').value),
+            so_luong_thuc_te: sl,
+            dich_den: document.getElementById('manual-dichden').value,
+            so_may: document.getElementById('manual-somay').value,
+            ca_sx: document.getElementById('manual-casx').value,
+            ngay_tron: document.getElementById('manual-ngaytron').value,
+            ghi_chu: document.getElementById('manual-ghichu').value
+        });
+
+        if (result && result.success) {
+            document.getElementById('manual-result').innerHTML =
+                `<div style="padding:8px;background:#d4edda;border-radius:4px">✅ ${result.message} — Loss: ${result.loss_kg} kg (${result.loss_percent}%)</div>`;
+            showToast(result.message, 'success');
+            document.getElementById('manual-ghichu').value = '';
+            loadBatchData();
+        } else {
+            document.getElementById('manual-result').innerHTML =
+                `<div style="padding:8px;background:#f8d7da;border-radius:4px">❌ ${result?.message || 'Lỗi'}</div>`;
+        }
+    }
+
+    initPage();
+</script>
+{% endblock %}

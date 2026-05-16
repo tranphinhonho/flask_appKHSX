@@ -1,0 +1,332 @@
+{% extends "base.html" %}
+{% block title %}Packing Plan{% endblock %}
+
+{% block content %}
+<h2><i class="bi bi-box-seam-fill"></i> Packing Plan</h2>
+<p class="text-muted">Kế hoạch đóng bao</p>
+
+<!-- Tabs -->
+<div class="tab-nav">
+    <button class="tab-btn active" onclick="switchPPTab(event,'tab-generate')">🤖 Tạo từ Pellet</button>
+    <button class="tab-btn" onclick="switchPPTab(event,'tab-manual')">✍️ Nhập thủ công</button>
+    <button class="tab-btn" onclick="switchPPTab(event,'tab-list')">📋 Danh sách</button>
+</div>
+
+<!-- Tab 1: Tạo từ Pellet -->
+<div class="tab-content active" id="tab-generate">
+    <div class="form-section">
+        <h3><i class="bi bi-robot"></i> Tạo kế hoạch đóng bao từ Pellet</h3>
+        <p class="text-muted">Tự động ánh xạ Pellet Machine → Packing Line</p>
+
+        <div class="form-row" style="align-items:flex-end;margin-bottom:16px">
+            <div class="form-field" style="flex:1">
+                <label>📅 Ngày đóng bao</label>
+                <input type="date" id="gen-ngay">
+            </div>
+            <div class="form-field" style="flex:1;text-align:center;padding:8px;background:#e3f2fd;border-radius:6px">
+                <div class="text-muted" style="font-size:11px">Số line đóng bao</div>
+                <div style="font-size:18px;font-weight:bold">8 lines</div>
+            </div>
+            <div class="form-field">
+                <button class="btn btn-primary" onclick="generatePlan()">🔄 Tạo kế hoạch</button>
+            </div>
+        </div>
+
+        <!-- Mapping reference -->
+        <details style="margin-bottom:16px">
+            <summary class="text-muted" style="cursor:pointer;font-size:12px">📋 Ma trận ánh xạ Pellet → Packing
+            </summary>
+            <div style="padding:8px;background:#f8f9fa;border-radius:4px;font-size:11px;margin-top:4px">
+                Cám bột → Packing 3 | Pellet 1 → Packing 5 | Pellet 2 → Packing 1 | Pellet 3 → Packing 2 |
+                Pellet 4 → Packing 4 | Pellet 5 → Packing 6 | Pellet 6 → Packing 7 | Pellet 7 → Packing 8
+            </div>
+        </details>
+
+        <!-- Generated plan -->
+        <div id="gen-result"></div>
+    </div>
+</div>
+
+<!-- Tab 2: Nhập thủ công -->
+<div class="tab-content" id="tab-manual">
+    <div class="form-section">
+        <h3><i class="bi bi-pencil-square"></i> Nhập kế hoạch đóng bao thủ công</h3>
+
+        <div id="manual-entries">
+            <table class="data-table" style="font-size:12px">
+                <thead>
+                    <tr>
+                        <th>Ngày đóng bao</th>
+                        <th>Sản phẩm</th>
+                        <th>Số lượng (tấn)</th>
+                        <th>Kích cỡ bao (kg)</th>
+                        <th>Line đóng bao</th>
+                        <th>Ghi chú</th>
+                        <th>Xóa</th>
+                    </tr>
+                </thead>
+                <tbody id="pp-entry-rows">
+                </tbody>
+            </table>
+            <button class="btn btn-secondary btn-sm" onclick="addPPRow()" style="margin-top:8px">+ Thêm dòng</button>
+        </div>
+
+        <button class="btn btn-primary" onclick="saveManualPP()" style="margin-top:12px">
+            <i class="bi bi-save"></i> Lưu kế hoạch
+        </button>
+        <div id="manual-result" style="margin-top:12px"></div>
+    </div>
+</div>
+
+<!-- Tab 3: Danh sách -->
+<div class="tab-content" id="tab-list">
+    <div class="form-section">
+        <div class="form-row" style="margin-bottom:16px;align-items:flex-end">
+            <div class="form-field" style="flex:1">
+                <label>📅 Ngày</label>
+                <input type="date" id="filter-ngay" onchange="loadPPList()">
+            </div>
+            <div class="form-field" style="flex:1">
+                <label>📦 Line</label>
+                <select id="filter-line" onchange="loadPPList()">
+                    <option value="Tất cả">Tất cả</option>
+                    <option>Packing 1</option>
+                    <option>Packing 2</option>
+                    <option>Packing 3</option>
+                    <option>Packing 4</option>
+                    <option>Packing 5</option>
+                    <option>Packing 6</option>
+                    <option>Packing 7</option>
+                    <option>Packing 8</option>
+                </select>
+            </div>
+        </div>
+        <div id="pp-table">
+            <p class="text-muted">Đang tải...</p>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let _products = [];
+    let _genData = null;
+
+    function switchPPTab(e, tabId) {
+        document.querySelectorAll('#tab-generate,#tab-manual,#tab-list').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.tab-nav .tab-btn').forEach(b => b.classList.remove('active'));
+        document.getElementById(tabId).classList.add('active');
+        e.currentTarget.classList.add('active');
+        if (tabId === 'tab-list') loadPPList();
+    }
+
+    async function initPage() {
+        const today = new Date().toISOString().split('T')[0];
+        document.getElementById('gen-ngay').value = today;
+
+        const latest = await api.get('/api/packingplan/latest-date');
+        document.getElementById('filter-ngay').value = latest?.latest_date || today;
+
+        // Load products
+        const prods = await api.get('/api/sanpham/lookup');
+        if (prods?.data) _products = prods.data;
+
+        addPPRow(); // Add first row
+        loadPPList();
+    }
+
+    function _productOptions() {
+        return '<option value="">-- Chọn --</option>' +
+            _products.map(p => `<option value="${p.ID}">${p['Code cám']} | ${p['Tên cám']}</option>`).join('');
+    }
+
+    // ==================== Generate from Pellet ====================
+    async function generatePlan() {
+        const ngay = document.getElementById('gen-ngay').value;
+        if (!ngay) { showToast('Chọn ngày', 'warning'); return; }
+
+        document.getElementById('gen-result').innerHTML = '<p class="text-muted">Đang tạo...</p>';
+
+        const result = await api.post('/api/packingplan/generate', { ngay });
+
+        if (!result || !result.success || !result.ke_hoach || result.ke_hoach.length === 0) {
+            document.getElementById('gen-result').innerHTML =
+                `<div style="padding:8px;background:#fff3cd;border-radius:4px">⚠️ ${result?.message || 'Không có dữ liệu Pellet'}</div>`;
+            _genData = null;
+            return;
+        }
+
+        _genData = result;
+
+        // Metrics
+        let html = `<div style="display:flex;gap:16px;margin-bottom:16px">
+            <div style="flex:1;padding:12px;background:#e8f5e9;border-radius:8px;text-align:center">
+                <div class="text-muted" style="font-size:11px">Tổng sản lượng</div>
+                <div style="font-size:20px;font-weight:bold">${result.tong_san_luong} tấn</div>
+            </div>
+            <div style="flex:1;padding:12px;background:#e3f2fd;border-radius:8px;text-align:center">
+                <div class="text-muted" style="font-size:11px">Tổng số bao</div>
+                <div style="font-size:20px;font-weight:bold">${result.tong_so_bao.toLocaleString()}</div>
+            </div>
+            <div style="flex:1;padding:12px;background:#fff3e0;border-radius:8px;text-align:center">
+                <div class="text-muted" style="font-size:11px">Lines sử dụng</div>
+                <div style="font-size:20px;font-weight:bold">${result.lines_used}/8</div>
+            </div>
+        </div>`;
+
+        // Group by line
+        const byLine = {};
+        result.ke_hoach.forEach(item => {
+            if (!byLine[item.line_packing]) byLine[item.line_packing] = [];
+            byLine[item.line_packing].push(item);
+        });
+
+        // Table per line
+        Object.keys(byLine).sort().forEach(line => {
+            const items = byLine[line];
+            const lineTotal = items.reduce((s, i) => s + i.so_luong_tan, 0);
+            const lineBao = items.reduce((s, i) => s + i.so_bao, 0);
+
+            html += `<div style="margin-bottom:12px;border:1px solid #dee2e6;border-radius:8px;overflow:hidden">
+                <div style="padding:8px 12px;background:#e3f2fd;font-weight:bold;display:flex;justify-content:space-between">
+                    <span>📦 ${line} (${items.length} SP)</span>
+                    <span>${lineTotal.toFixed(1)} tấn | ${lineBao.toLocaleString()} bao</span>
+                </div>
+                <table class="data-table" style="font-size:11px;margin:0">
+                    <thead><tr><th>Sản phẩm</th><th>From</th><th>Số lượng (tấn)</th><th>Bao (kg)</th><th>Số bao</th></tr></thead>
+                    <tbody>`;
+            items.forEach(i => {
+                html += `<tr>
+                    <td>${i.ten_cam}</td>
+                    <td>${i.so_may}</td>
+                    <td>${i.so_luong_tan.toFixed(1)}</td>
+                    <td>${i.kich_co_bao}</td>
+                    <td>${i.so_bao.toLocaleString()}</td>
+                </tr>`;
+            });
+            html += '</tbody></table></div>';
+        });
+
+        html += `<button class="btn btn-primary" onclick="saveGeneratedPlan()" style="width:100%;margin-top:8px">
+            💾 Lưu kế hoạch đóng bao
+        </button>`;
+
+        document.getElementById('gen-result').innerHTML = html;
+    }
+
+    async function saveGeneratedPlan() {
+        if (!_genData) return;
+        const ngay = document.getElementById('gen-ngay').value;
+
+        const result = await api.post('/api/packingplan/save-generated', {
+            ke_hoach: _genData.ke_hoach, ngay
+        });
+
+        if (result && result.success) {
+            showToast(result.message, 'success');
+            document.getElementById('gen-result').innerHTML =
+                `<div style="padding:12px;background:#d4edda;border-radius:6px">✅ ${result.message}</div>`;
+            _genData = null;
+        } else {
+            showToast(result?.message || 'Lỗi', 'error');
+        }
+    }
+
+    // ==================== Manual ====================
+    function addPPRow() {
+        const today = new Date().toISOString().split('T')[0];
+        const tbody = document.getElementById('pp-entry-rows');
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td><input type="date" class="pp-ngay" value="${today}" style="width:130px"></td>
+            <td><select class="pp-sp" style="width:200px">${_productOptions()}</select></td>
+            <td><input type="number" class="pp-soluong" min="0" step="0.1" value="0" style="width:80px"></td>
+            <td><select class="pp-kichco"><option>50</option><option>40</option><option>25</option><option>20</option><option>10</option><option>5</option></select></td>
+            <td><select class="pp-line"><option>Packing 1</option><option>Packing 2</option><option>Packing 3</option><option>Packing 4</option><option>Packing 5</option><option>Packing 6</option><option>Packing 7</option><option>Packing 8</option></select></td>
+            <td><input type="text" class="pp-ghichu" placeholder="..." style="width:120px"></td>
+            <td><button class="btn btn-danger btn-sm" onclick="this.closest('tr').remove()" style="padding:2px 8px">✕</button></td>`;
+        tbody.appendChild(tr);
+    }
+
+    async function saveManualPP() {
+        const rows = document.querySelectorAll('#pp-entry-rows tr');
+        const items = [];
+
+        rows.forEach(row => {
+            const sp = row.querySelector('.pp-sp')?.value;
+            const sl = parseFloat(row.querySelector('.pp-soluong')?.value) || 0;
+            if (sp && sl > 0) {
+                items.push({
+                    ngay: row.querySelector('.pp-ngay')?.value,
+                    id_sanpham: sp,
+                    so_luong_tan: sl,
+                    kich_co_bao: parseInt(row.querySelector('.pp-kichco')?.value),
+                    line: row.querySelector('.pp-line')?.value,
+                    ghi_chu: row.querySelector('.pp-ghichu')?.value || ''
+                });
+            }
+        });
+
+        if (items.length === 0) { showToast('Không có dữ liệu hợp lệ', 'warning'); return; }
+
+        const result = await api.post('/api/packingplan/create', { items });
+        if (result && result.success) {
+            document.getElementById('manual-result').innerHTML =
+                `<div style="padding:8px;background:#d4edda;border-radius:4px">✅ ${result.message}</div>`;
+            showToast(result.message, 'success');
+        } else {
+            document.getElementById('manual-result').innerHTML =
+                `<div style="padding:8px;background:#f8d7da;border-radius:4px">❌ ${result?.message || 'Lỗi'}</div>`;
+        }
+    }
+
+    // ==================== List ====================
+    async function loadPPList() {
+        const ngay = document.getElementById('filter-ngay').value;
+        const line = document.getElementById('filter-line').value;
+
+        let params = '?per_page=200';
+        if (ngay) params += `&ngay=${ngay}`;
+        if (line !== 'Tất cả') params += `&line=${encodeURIComponent(line)}`;
+
+        const result = await api.get(`/api/packingplan${params}`);
+        const container = document.getElementById('pp-table');
+
+        if (!result || !result.data || result.data.length === 0) {
+            container.innerHTML = '<p class="text-muted">Không có dữ liệu</p>';
+            return;
+        }
+
+        const cols = ['ID', 'Ngày đóng bao', 'Code cám', 'Tên cám',
+            'Số lượng (tấn)', 'Kích cỡ bao (kg)', 'Số bao',
+            'Line đóng bao', 'Ghi chú', 'Người tạo', 'Thời gian tạo'];
+
+        let html = `<p class="text-muted" style="font-size:12px">Tổng: ${result.total} dòng</p>`;
+        html += '<div style="max-height:500px;overflow:auto"><table class="data-table" style="font-size:12px"><thead><tr>';
+        cols.forEach(c => html += `<th>${c}</th>`);
+        html += '<th>Xóa</th></tr></thead><tbody>';
+
+        result.data.forEach(row => {
+            html += '<tr>';
+            cols.forEach(c => {
+                let val = row[c];
+                if (c === 'Số bao' && typeof val === 'number') val = val.toLocaleString();
+                html += `<td>${val ?? ''}</td>`;
+            });
+            html += `<td><button class="btn btn-danger btn-sm" onclick="deletePP(${row.ID})" style="padding:2px 8px;font-size:11px">🗑️</button></td>`;
+            html += '</tr>';
+        });
+        html += '</tbody></table></div>';
+        container.innerHTML = html;
+    }
+
+    async function deletePP(id) {
+        if (!confirm('Xóa dòng này?')) return;
+        const result = await api.post('/api/packingplan/delete', { id });
+        if (result && result.success) { showToast('Đã xóa', 'success'); loadPPList(); }
+    }
+
+    initPage();
+</script>
+{% endblock %}

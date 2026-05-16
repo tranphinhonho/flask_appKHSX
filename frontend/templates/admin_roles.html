@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+
+{% block title %}Quản lý Vai trò - Kế hoạch Sản xuất{% endblock %}
+
+{% block content %}
+<div class="admin-layout">
+    <!-- Thêm vai trò -->
+    <div class="form-section">
+        <h3><i class="bi bi-shield-plus"></i> Thêm vai trò</h3>
+        <form id="form-add-role" onsubmit="addRole(event)">
+            <div class="form-row">
+                <div class="form-field">
+                    <label>Tên vai trò *</label>
+                    <input type="text" id="role-name" required placeholder="Nhập tên vai trò">
+                </div>
+                <div class="form-field">
+                    <label>Thứ tự ưu tiên</label>
+                    <input type="number" id="role-priority" value="1" min="1" max="999">
+                </div>
+                <div class="form-field" style="justify-content:flex-end">
+                    <button type="submit" class="btn btn-primary" id="btn-add-role">
+                        <i class="bi bi-plus-lg"></i> Thêm vai trò
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <!-- Danh sách vai trò -->
+    <div class="data-section">
+        <h3><i class="bi bi-shield-check"></i> Danh sách vai trò hiện tại</h3>
+        <div id="roles-table"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const columns = [
+        { key: 'ID', label: 'ID' },
+        { key: 'Vai trò', label: 'Vai trò', editable: true },
+        { key: 'Thứ tự ưu tiên', label: 'Thứ tự', editable: true },
+        { key: 'Người tạo', label: 'Người tạo' },
+        { key: 'Thời gian tạo', label: 'Thời gian tạo' },
+        { key: 'Người sửa', label: 'Người sửa' },
+        { key: 'Thời gian sửa', label: 'Thời gian sửa' }
+    ];
+
+    const dt = new DataTable('roles-table', {
+        apiUrl: '/api/admin/roles',
+        editUrl: '/api/admin/roles',
+        columns: columns,
+        searchColumns: ['Vai trò'],
+        perPage: 20,
+        onDelete: async function (ids) {
+            const result = await api.post('/api/admin/roles/delete', { ids: ids });
+            if (result && result.success) {
+                showToast(result.message, 'success');
+                dt.loadData();
+            } else {
+                showToast(result?.message || 'Lỗi khi xóa', 'error');
+            }
+        }
+    });
+
+    async function addRole(e) {
+        e.preventDefault();
+        const btn = document.getElementById('btn-add-role');
+        btn.disabled = true;
+
+        const data = {
+            'Vai trò': document.getElementById('role-name').value.trim(),
+            'Thứ tự ưu tiên': parseInt(document.getElementById('role-priority').value) || 1
+        };
+
+        try {
+            const result = await api.post('/api/admin/roles', data);
+            if (result && result.success) {
+                showToast(result.message, 'success');
+                document.getElementById('form-add-role').reset();
+                dt.loadData();
+            } else {
+                showToast(result?.message || 'Lỗi', 'error');
+            }
+        } catch (err) {
+            showToast('Lỗi kết nối', 'error');
+        } finally {
+            btn.disabled = false;
+        }
+    }
+</script>
+{% endblock %}

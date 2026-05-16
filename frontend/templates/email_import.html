@@ -1,0 +1,394 @@
+{% extends "base.html" %}
+{% block title %}Nhận email{% endblock %}
+
+{% block content %}
+<h2><i class="bi bi-envelope-arrow-down"></i> Nhận email & Import Stock</h2>
+<p class="text-muted">Import FFSTOCK và BAG REPORT từ folder EXCEL hoặc upload trực tiếp</p>
+
+<!-- Tabs -->
+<div class="tab-nav">
+    <button class="tab-btn active" onclick="switchEmailTab(event,'tab-files')">📁 Files trong EXCEL</button>
+    <button class="tab-btn" onclick="switchEmailTab(event,'tab-upload')">📤 Upload file</button>
+    <button class="tab-btn" onclick="switchEmailTab(event,'tab-outlook')">📧 Nhận từ Outlook</button>
+    <button class="tab-btn" onclick="switchEmailTab(event,'tab-history')">📋 Lịch sử import</button>
+</div>
+
+<!-- Tab 1: Scan files from EXCEL folder -->
+<div class="tab-content active" id="tab-files">
+    <div class="form-section">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+            <h3><i class="bi bi-folder2-open"></i> Files trong folder EXCEL</h3>
+            <button class="btn btn-primary btn-sm" onclick="scanExcelFiles()">
+                <i class="bi bi-arrow-clockwise"></i> Quét lại
+            </button>
+        </div>
+        <div id="scan-status" class="text-muted" style="font-size:12px;margin-bottom:12px"></div>
+
+        <!-- FFSTOCK section -->
+        <h4>📄 FFSTOCK</h4>
+        <div id="ffstock-list" style="margin-bottom:24px">
+            <p class="text-muted">Nhấn "Quét lại" để tìm files...</p>
+        </div>
+
+        <!-- BAG REPORT section -->
+        <h4>📦 BAG REPORT</h4>
+        <div id="bag-list">
+            <p class="text-muted">Nhấn "Quét lại" để tìm files...</p>
+        </div>
+    </div>
+</div>
+
+<!-- Tab 2: Upload file -->
+<div class="tab-content" id="tab-upload">
+    <div class="form-section">
+        <h3><i class="bi bi-cloud-arrow-up"></i> Upload file trực tiếp</h3>
+        <p class="text-muted">Upload file FFSTOCK (.xls/.xlsx/.xlsm) hoặc BAG REPORT để import vào database</p>
+
+        <div class="form-row" style="align-items:flex-end">
+            <div class="form-field" style="flex:1">
+                <label>Loại file</label>
+                <select id="upload-file-type">
+                    <option value="FFSTOCK">📄 FFSTOCK</option>
+                    <option value="BAG_REPORT">📦 BAG REPORT</option>
+                </select>
+            </div>
+            <div class="form-field" style="flex:2">
+                <label>Chọn file Excel</label>
+                <input type="file" id="upload-file-input" accept=".xls,.xlsx,.xlsm">
+            </div>
+            <div class="form-field">
+                <label><input type="checkbox" id="upload-overwrite"> Ghi đè</label>
+            </div>
+            <div class="form-field">
+                <button class="btn btn-primary" onclick="uploadAndImport()">
+                    <i class="bi bi-cloud-arrow-up"></i> Import
+                </button>
+            </div>
+        </div>
+        <div id="upload-status" style="margin-top:12px"></div>
+    </div>
+</div>
+
+<!-- Tab 3: Outlook -->
+<div class="tab-content" id="tab-outlook">
+    <div class="form-section">
+        <h3><i class="bi bi-envelope"></i> Kiểm tra email Outlook</h3>
+        <p class="text-muted">Kết nối Outlook để tìm email có file FFSTOCK / BAG REPORT</p>
+
+        <div class="form-row" style="align-items:flex-end">
+            <div class="form-field" style="flex:1">
+                <label>Tìm email trong</label>
+                <select id="outlook-days">
+                    <option value="2">2 ngày</option>
+                    <option value="4" selected>4 ngày</option>
+                    <option value="7">7 ngày</option>
+                    <option value="14">14 ngày</option>
+                    <option value="30">30 ngày</option>
+                </select>
+            </div>
+            <div class="form-field">
+                <button class="btn btn-primary" onclick="checkOutlookEmails()">
+                    <i class="bi bi-search"></i> Kiểm tra email mới
+                </button>
+            </div>
+        </div>
+        <div id="outlook-status" style="margin-top:12px"></div>
+        <div id="outlook-emails" style="margin-top:16px"></div>
+    </div>
+</div>
+
+<!-- Tab 4: History -->
+<div class="tab-content" id="tab-history">
+    <div class="form-section">
+        <h3><i class="bi bi-clock-history"></i> Lịch sử import</h3>
+        <div id="import-history">
+            <p class="text-muted">Đang tải...</p>
+        </div>
+    </div>
+</div>
+
+<!-- Preview Modal -->
+<div id="preview-modal"
+    style="display:none;position:fixed;inset:0;z-index:999;background:rgba(0,0,0,.5);padding:32px;overflow:auto">
+    <div style="max-width:900px;margin:auto;background:white;border-radius:12px;padding:24px;position:relative">
+        <button onclick="document.getElementById('preview-modal').style.display='none'"
+            style="position:absolute;top:12px;right:16px;border:none;background:none;font-size:20px;cursor:pointer">✕</button>
+        <h4 id="preview-title">Preview</h4>
+        <div id="preview-content" style="max-height:500px;overflow:auto"></div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function switchEmailTab(e, tabId) {
+        document.querySelectorAll('#tab-files,#tab-upload,#tab-outlook,#tab-history').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.tab-nav .tab-btn').forEach(b => b.classList.remove('active'));
+        document.getElementById(tabId).classList.add('active');
+        e.currentTarget.classList.add('active');
+
+        if (tabId === 'tab-history') loadImportHistory();
+    }
+
+    // === SCAN FILES ===
+    async function scanExcelFiles() {
+        document.getElementById('scan-status').textContent = 'Đang quét...';
+        const result = await api.get('/api/email/scan-files');
+
+        if (!result || !result.success) {
+            document.getElementById('scan-status').textContent = `✗ ${result?.message || 'Lỗi'}`;
+            return;
+        }
+
+        document.getElementById('scan-status').textContent = `📂 ${result.excel_dir}`;
+
+        // Render FFSTOCK list
+        renderFileList('ffstock-list', result.ffstock, 'FFSTOCK');
+        // Render BAG list
+        renderFileList('bag-list', result.bag_report, 'BAG_REPORT');
+    }
+
+    function renderFileList(containerId, files, fileType) {
+        const container = document.getElementById(containerId);
+
+        if (!files || files.length === 0) {
+            container.innerHTML = '<p class="text-muted">📭 Không tìm thấy file</p>';
+            return;
+        }
+
+        let html = '<div style="display:flex;flex-direction:column;gap:8px">';
+        files.forEach(f => {
+            const icon = fileType === 'FFSTOCK' ? '📄' : '📦';
+            const statusIcon = f.imported ? '✅' : '🆕';
+            const statusText = f.imported ? 'Đã import' : 'Chưa import';
+            const ngay = f.ngay_stock ? ` — Stock ngày ${f.ngay_stock}` : '';
+            const bold = f.imported ? '' : 'font-weight:bold';
+
+            html += `<div style="display:flex;align-items:center;gap:12px;padding:8px 12px;background:#f8f9fa;border-radius:6px">
+                <div style="flex:3;${bold}">
+                    ${icon} ${f.filename} <span class="text-muted" style="font-size:11px">(${f.size_kb} KB)</span>
+                    <br><span style="font-size:11px;color:${f.imported ? '#28a745' : '#007bff'}">${statusIcon} ${statusText}${ngay}</span>
+                </div>
+                <button class="btn btn-secondary btn-sm" onclick="previewFile('${escape(f.filepath)}','${fileType}')">
+                    👁️ Preview
+                </button>
+                <button class="btn btn-${f.imported ? 'secondary' : 'primary'} btn-sm"
+                    onclick="importFile('${escape(f.filepath)}','${fileType}',${f.imported})">
+                    ${f.imported ? '🔄 Import lại' : '🚀 Import'}
+                </button>
+            </div>`;
+        });
+        html += '</div>';
+        container.innerHTML = html;
+    }
+
+    function escape(str) {
+        return str.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+    }
+
+    async function previewFile(filepath, fileType) {
+        const url = fileType === 'BAG_REPORT' ? '/api/email/preview-bag' : '/api/email/preview-ffstock';
+        document.getElementById('preview-title').textContent = `Preview: ${filepath.split('\\').pop()}`;
+        document.getElementById('preview-content').innerHTML = '<p class="text-muted">Đang tải...</p>';
+        document.getElementById('preview-modal').style.display = 'block';
+
+        const result = await api.post(url, { filepath: filepath });
+
+        if (!result || !result.success || !result.data || result.data.length === 0) {
+            document.getElementById('preview-content').innerHTML = '<p style="color:red">Không có dữ liệu</p>';
+            return;
+        }
+
+        // Build table
+        const cols = Object.keys(result.data[0]);
+        let html = `<p class="text-muted" style="font-size:12px">Tìm thấy ${result.count} dòng</p>`;
+        html += '<table class="data-table" style="font-size:11px"><thead><tr>';
+        cols.forEach(c => html += `<th>${c}</th>`);
+        html += '</tr></thead><tbody>';
+        result.data.slice(0, 50).forEach(row => {
+            html += '<tr>';
+            cols.forEach(c => {
+                let val = row[c];
+                if (typeof val === 'number') val = val.toLocaleString();
+                html += `<td>${val ?? ''}</td>`;
+            });
+            html += '</tr>';
+        });
+        html += '</tbody></table>';
+        if (result.count > 50) html += `<p class="text-muted">Hiển thị 50/${result.count} dòng</p>`;
+        document.getElementById('preview-content').innerHTML = html;
+    }
+
+    async function importFile(filepath, fileType, isReimport) {
+        const action = isReimport ? 'Import lại' : 'Import';
+        if (!confirm(`${action} file này vào database?`)) return;
+
+        const url = fileType === 'BAG_REPORT' ? '/api/email/import-bag' : '/api/email/import-ffstock';
+        const result = await api.post(url, { filepath: filepath, overwrite: isReimport });
+
+        if (result && (result.success > 0 || result.success === true)) {
+            let msg = `✅ Import thành công ${result.success} dòng`;
+            if (result.ma_stock_old) msg += ` — Mã: ${result.ma_stock_old}`;
+            if (result.not_found && result.not_found.length > 0) {
+                msg += `\n⚠️ ${result.not_found.length} mã chưa tìm thấy`;
+            }
+            showToast(msg, 'success');
+            scanExcelFiles(); // Refresh
+        } else if (result && result.skipped) {
+            showToast('File đã được import trước đó', 'warning');
+        } else {
+            showToast(result?.errors?.join(', ') || 'Lỗi import', 'error');
+        }
+    }
+
+    // === UPLOAD ===
+    async function uploadAndImport() {
+        const file = document.getElementById('upload-file-input').files[0];
+        if (!file) { showToast('Chọn file trước', 'warning'); return; }
+
+        const fileType = document.getElementById('upload-file-type').value;
+        const overwrite = document.getElementById('upload-overwrite').checked;
+
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('file_type', fileType);
+        formData.append('overwrite', overwrite.toString());
+
+        const statusEl = document.getElementById('upload-status');
+        statusEl.innerHTML = '<p class="text-muted">Đang upload và import...</p>';
+
+        const result = await api.upload('/api/email/upload-import', formData);
+
+        if (result && (result.success > 0 || result.success === true)) {
+            let msg = `✅ Import thành công <strong>${result.success}</strong> dòng`;
+            if (result.ma_stock_old) msg += ` — Mã: <strong>${result.ma_stock_old}</strong>`;
+            if (result.ngay_stock) msg += ` — Ngày: ${result.ngay_stock}`;
+            if (result.not_found && result.not_found.length > 0) {
+                msg += `<br>⚠️ ${result.not_found.length} mã SP chưa tìm thấy: ${result.not_found.slice(0, 5).join(', ')}`;
+            }
+            if (result.auto_added && result.auto_added.length > 0) {
+                msg += `<br>🆕 Tự động thêm ${result.auto_added.length} SP mới`;
+            }
+            statusEl.innerHTML = `<div style="padding:12px;background:#d4edda;border-radius:6px">${msg}</div>`;
+            showToast(`Import thành công ${result.success} dòng`, 'success');
+        } else if (result && result.skipped) {
+            statusEl.innerHTML = `<div style="padding:12px;background:#fff3cd;border-radius:6px">⚠️ File đã import trước đó. Tick "Ghi đè" để import lại.</div>`;
+        } else {
+            const errMsg = result?.errors?.join(', ') || 'Lỗi import';
+            statusEl.innerHTML = `<div style="padding:12px;background:#f8d7da;border-radius:6px">❌ ${errMsg}</div>`;
+        }
+    }
+
+    // === OUTLOOK ===
+    async function checkOutlookEmails() {
+        const days = document.getElementById('outlook-days').value;
+        const statusEl = document.getElementById('outlook-status');
+        statusEl.innerHTML = '<p class="text-muted">Đang kết nối Outlook...</p>';
+
+        const result = await api.post('/api/email/check-outlook', { days_back: parseInt(days) });
+
+        if (!result || !result.success) {
+            statusEl.innerHTML = `<div style="padding:8px;background:#f8d7da;border-radius:4px">❌ ${result?.message || 'Lỗi kết nối'}</div>`;
+            return;
+        }
+
+        statusEl.innerHTML = `<div style="padding:8px;background:#d4edda;border-radius:4px">✅ Tìm thấy ${result.count} email</div>`;
+
+        // Render email list
+        const container = document.getElementById('outlook-emails');
+        if (!result.emails || result.emails.length === 0) {
+            container.innerHTML = '<p class="text-muted">Không tìm thấy email có FFSTOCK / BAG REPORT</p>';
+            return;
+        }
+
+        let html = '';
+        result.emails.forEach((email, idx) => {
+            html += `<div style="padding:12px;background:#f8f9fa;border-radius:8px;margin-bottom:12px">
+                <div style="display:flex;justify-content:space-between;align-items:center">
+                    <div>
+                        <strong>📧 ${email.sender}</strong> — ${email.received_time}
+                        <br><span class="text-muted" style="font-size:12px">${email.subject}</span>
+                        ${email.unread ? ' <span style="color:#007bff;font-size:11px">📬 Chưa đọc</span>' : ''}
+                    </div>
+                </div>`;
+
+            // Stock files
+            (email.stock_files || []).forEach(f => {
+                html += `<div style="display:flex;align-items:center;gap:8px;margin-top:8px;padding:6px;background:white;border-radius:4px">
+                    <span style="flex:2">📄 ${f.filename} (${(f.size / 1024).toFixed(1)} KB)</span>
+                    <button class="btn btn-primary btn-sm" onclick="downloadAndImport('${email.entry_id}',${f.index},'FFSTOCK',false)">
+                        🚀 Import
+                    </button>
+                </div>`;
+            });
+
+            // Bag files
+            (email.bag_files || []).forEach(f => {
+                html += `<div style="display:flex;align-items:center;gap:8px;margin-top:8px;padding:6px;background:white;border-radius:4px">
+                    <span style="flex:2">📦 ${f.filename} (${(f.size / 1024).toFixed(1)} KB)</span>
+                    <button class="btn btn-primary btn-sm" onclick="downloadAndImport('${email.entry_id}',${f.index},'BAG_REPORT',false)">
+                        🚀 Import
+                    </button>
+                </div>`;
+            });
+
+            html += '</div>';
+        });
+        container.innerHTML = html;
+    }
+
+    async function downloadAndImport(entryId, attIndex, fileType, overwrite) {
+        if (!confirm('Download file và import vào database?')) return;
+
+        const result = await api.post('/api/email/download-and-import', {
+            entry_id: entryId,
+            att_index: attIndex,
+            file_type: fileType,
+            overwrite: overwrite
+        });
+
+        if (result && (result.success > 0 || result.success === true)) {
+            showToast(`✅ Import ${result.filename}: ${result.success} dòng`, 'success');
+            checkOutlookEmails(); // Refresh
+        } else {
+            showToast(result?.errors?.join(', ') || 'Lỗi', 'error');
+        }
+    }
+
+    // === HISTORY ===
+    async function loadImportHistory() {
+        const container = document.getElementById('import-history');
+        container.innerHTML = '<p class="text-muted">Đang tải...</p>';
+
+        const result = await api.get('/api/email/history?limit=30');
+
+        if (!result || !result.success || !result.history || result.history.length === 0) {
+            container.innerHTML = '<p class="text-muted">Chưa có lịch sử import</p>';
+            return;
+        }
+
+        let html = '<table class="data-table" style="font-size:12px"><thead><tr>';
+        ['#', 'Tên file', 'Loại', 'Số lượng', 'Ngày stock', 'Người import', 'Thời gian'].forEach(c => html += `<th>${c}</th>`);
+        html += '</tr></thead><tbody>';
+
+        result.history.forEach(row => {
+            html += `<tr>
+                <td>${row.id}</td>
+                <td>${row.filename}</td>
+                <td>${row.loai_file}</td>
+                <td>${row.so_luong}</td>
+                <td>${row.ngay_email || ''}</td>
+                <td>${row.nguoi_import || ''}</td>
+                <td>${row.thoi_gian_import || ''}</td>
+            </tr>`;
+        });
+
+        html += '</tbody></table>';
+        container.innerHTML = html;
+    }
+
+    // Auto scan on load
+    scanExcelFiles();
+</script>
+{% endblock %}

@@ -1,0 +1,483 @@
+{% extends "base.html" %}
+{% block title %}Pellet Plan{% endblock %}
+
+{% block content %}
+<h2><i class="bi bi-gear-wide-connected"></i> Pellet Plan</h2>
+<p class="text-muted">Quản lý Pellet — 7 máy PL1-PL7</p>
+
+<!-- Tabs -->
+<div class="tab-nav">
+    <button class="tab-btn active" onclick="switchPLTab(event,'tab-auto')">🤖 Phân bổ tự động</button>
+    <button class="tab-btn" onclick="switchPLTab(event,'tab-manual')">✍️ Nhập thủ công</button>
+    <button class="tab-btn" onclick="switchPLTab(event,'tab-list')">📋 Danh sách</button>
+    <button class="tab-btn" onclick="switchPLTab(event,'tab-capacity')">📊 T/h Capacity</button>
+</div>
+
+<!-- Tab 1: Phân bổ tự động -->
+<div class="tab-content active" id="tab-auto">
+    <div class="form-section">
+        <h3><i class="bi bi-robot"></i> Phân bổ Pellet tự động từ Plan</h3>
+        <p class="text-muted">Sử dụng T/h tối ưu từ dữ liệu vận hành thực tế. Default: PL1-2: 10, PL3-4: 9, PL5-7: 8
+            tấn/giờ</p>
+
+        <div class="form-row" style="align-items:flex-end;margin-bottom:16px">
+            <div class="form-field" style="flex:1">
+                <label>📅 Ngày sản xuất</label>
+                <input type="date" id="auto-ngay">
+            </div>
+            <div class="form-field" style="flex:1;text-align:center;padding:8px;background:#e3f2fd;border-radius:6px">
+                <div class="text-muted" style="font-size:11px">Tổng công suất mặc định</div>
+                <div style="font-size:18px;font-weight:bold">72 tấn/giờ (7 máy)</div>
+            </div>
+            <div class="form-field">
+                <button class="btn btn-primary" onclick="autoAllocate()">🔄 Phân bổ tự động</button>
+            </div>
+        </div>
+
+        <div id="auto-result"></div>
+    </div>
+</div>
+
+<!-- Tab 2: Nhập thủ công -->
+<div class="tab-content" id="tab-manual">
+    <div class="form-section">
+        <h3><i class="bi bi-pencil-square"></i> Nhập Pellet thủ công</h3>
+        <table class="data-table" style="font-size:12px">
+            <thead>
+                <tr>
+                    <th>Ngày SX</th>
+                    <th>Sản phẩm</th>
+                    <th>Số lượng (tấn)</th>
+                    <th>Số máy</th>
+                    <th>Ghi chú</th>
+                    <th>Xóa</th>
+                </tr>
+            </thead>
+            <tbody id="pl-entry-rows"></tbody>
+        </table>
+        <button class="btn btn-secondary btn-sm" onclick="addPLRow()" style="margin-top:8px">+ Thêm dòng</button>
+        <br>
+        <button class="btn btn-primary" onclick="saveManualPL()" style="margin-top:12px">
+            <i class="bi bi-save"></i> Lưu Pellet
+        </button>
+        <div id="manual-result" style="margin-top:12px"></div>
+    </div>
+</div>
+
+<!-- Tab 3: Danh sách -->
+<div class="tab-content" id="tab-list">
+    <div class="form-section">
+        <div class="form-row" style="margin-bottom:16px;align-items:flex-end">
+            <div class="form-field" style="flex:1">
+                <label>📅 Ngày</label>
+                <input type="date" id="filter-ngay" onchange="loadPLList()">
+            </div>
+            <div class="form-field" style="flex:1">
+                <label>🔧 Số máy</label>
+                <select id="filter-may" onchange="loadPLList()">
+                    <option value="Tất cả">Tất cả</option>
+                    <option>Pellet 1</option>
+                    <option>Pellet 2</option>
+                    <option>Pellet 3</option>
+                    <option>Pellet 4</option>
+                    <option>Pellet 5</option>
+                    <option>Pellet 6</option>
+                    <option>Pellet 7</option>
+                </select>
+            </div>
+        </div>
+        <div id="pl-table">
+            <p class="text-muted">Đang tải...</p>
+        </div>
+    </div>
+</div>
+
+<!-- Tab 4: T/h Capacity -->
+<div class="tab-content" id="tab-capacity">
+    <div class="form-section">
+        <h3><i class="bi bi-speedometer2"></i> Theo dõi T/h Capacity (PelletCapacity)</h3>
+
+        <!-- Upload file -->
+        <div style="padding:12px;background:#f8f9fa;border-radius:8px;margin-bottom:16px">
+            <div class="form-row" style="align-items:flex-end">
+                <div class="form-field" style="flex:2">
+                    <label>📤 Upload file PL*.xlsx</label>
+                    <input type="file" id="cap-upload" accept=".xlsx,.xlsm">
+                </div>
+                <div class="form-field">
+                    <button class="btn btn-primary" onclick="uploadCapacity()">🚀 Import</button>
+                </div>
+            </div>
+            <div id="cap-upload-result" style="margin-top:8px"></div>
+        </div>
+
+        <!-- Stats -->
+        <div id="cap-stats">
+            <p class="text-muted">Đang tải...</p>
+        </div>
+
+        <!-- Detail view -->
+        <div style="margin-top:16px">
+            <div class="form-row" style="align-items:flex-end;margin-bottom:8px">
+                <div class="form-field" style="flex:1">
+                    <label>Xem theo</label>
+                    <select id="cap-mode" onchange="toggleCapMode()">
+                        <option value="machine">Theo máy</option>
+                        <option value="date">Theo ngày</option>
+                    </select>
+                </div>
+                <div class="form-field" style="flex:1" id="cap-machine-field">
+                    <label>Số máy</label>
+                    <select id="cap-machine" onchange="loadCapDetail()">
+                        <option>PL1</option>
+                        <option>PL2</option>
+                        <option>PL3</option>
+                        <option>PL4</option>
+                        <option>PL5</option>
+                        <option>PL6</option>
+                        <option>PL7</option>
+                    </select>
+                </div>
+                <div class="form-field" style="flex:1;display:none" id="cap-date-field">
+                    <label>Ngày</label>
+                    <select id="cap-date" onchange="loadCapDetail()"></select>
+                </div>
+            </div>
+            <div id="cap-detail"></div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let _products = [];
+    let _allocData = null;
+
+    function switchPLTab(e, tabId) {
+        document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.tab-nav .tab-btn').forEach(b => b.classList.remove('active'));
+        document.getElementById(tabId).classList.add('active');
+        e.currentTarget.classList.add('active');
+        if (tabId === 'tab-list') loadPLList();
+        if (tabId === 'tab-capacity') loadCapStats();
+    }
+
+    async function initPage() {
+        const today = new Date().toISOString().split('T')[0];
+        document.getElementById('auto-ngay').value = today;
+
+        const latest = await api.get('/api/pellet/latest-date');
+        document.getElementById('filter-ngay').value = latest?.latest_date || today;
+
+        const prods = await api.get('/api/sanpham/lookup');
+        if (prods?.data) _products = prods.data;
+
+        addPLRow();
+        loadPLList();
+    }
+
+    function _prodOpts() {
+        return '<option value="">-- Chọn --</option>' +
+            _products.map(p => `<option value="${p.ID}">${p['Code cám']} | ${p['Tên cám']}</option>`).join('');
+    }
+
+    const _machineOpts = ['Pellet 1', 'Pellet 2', 'Pellet 3', 'Pellet 4', 'Pellet 5', 'Pellet 6', 'Pellet 7']
+        .map(m => `<option>${m}</option>`).join('');
+
+    // ==================== Auto Allocate ====================
+    async function autoAllocate() {
+        const ngay = document.getElementById('auto-ngay').value;
+        if (!ngay) { showToast('Chọn ngày', 'warning'); return; }
+
+        document.getElementById('auto-result').innerHTML = '<p class="text-muted">Đang tính toán...</p>';
+        const result = await api.post('/api/pellet/auto-allocate', { ngay });
+
+        if (!result?.success || !result.phan_bo?.length) {
+            document.getElementById('auto-result').innerHTML =
+                `<div style="padding:8px;background:#fff3cd;border-radius:4px">⚠️ ${result?.message || 'Không có dữ liệu Plan'}</div>`;
+            _allocData = null;
+            return;
+        }
+
+        _allocData = result;
+
+        // Metrics
+        let html = `<div style="display:flex;gap:16px;margin-bottom:16px">
+            <div style="flex:1;padding:12px;background:#e8f5e9;border-radius:8px;text-align:center">
+                <div class="text-muted" style="font-size:11px">Tổng sản lượng</div>
+                <div style="font-size:20px;font-weight:bold">${result.tong_san_luong} tấn</div>
+            </div>
+            <div style="flex:1;padding:12px;background:#e3f2fd;border-radius:8px;text-align:center">
+                <div class="text-muted" style="font-size:11px">Máy sử dụng</div>
+                <div style="font-size:20px;font-weight:bold">${result.machines_used}/7</div>
+            </div>
+            <div style="flex:1;padding:12px;background:#fff3e0;border-radius:8px;text-align:center">
+                <div class="text-muted" style="font-size:11px">Số SP</div>
+                <div style="font-size:20px;font-weight:bold">${result.phan_bo.length}</div>
+            </div>
+        </div>`;
+
+        // Warnings
+        if (result.warnings?.length) {
+            html += '<div style="padding:8px;background:#fff3cd;border-radius:4px;margin-bottom:12px;font-size:12px">';
+            result.warnings.forEach(w => html += `${w}<br>`);
+            html += '</div>';
+        }
+
+        // Table
+        html += '<table class="data-table" style="font-size:11px"><thead><tr>';
+        ['Mã plan', 'Code cám', 'Tên cám', 'Số lượng', 'Máy', 'T/h', 'Kwh/T', 'Giờ chạy', 'Nguồn'].forEach(c => html += `<th>${c}</th>`);
+        html += '</tr></thead><tbody>';
+        result.phan_bo.forEach(r => {
+            html += `<tr>
+                <td>${r.ma_plan || ''}</td><td>${r.code_cam || ''}</td><td>${r.ten_cam || ''}</td>
+                <td>${r.so_luong}</td><td><strong>${r.so_may}</strong></td>
+                <td>${r.th}</td><td>${r.kwh_t || '-'}</td><td>${r.hours}h</td>
+                <td style="font-size:10px">${r.nguon}</td>
+            </tr>`;
+        });
+        html += '</tbody></table>';
+
+        // Machine hours summary
+        html += '<div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">';
+        Object.entries(result.machines).forEach(([m, h]) => {
+            const pct = Math.min(100, (h / 24) * 100);
+            const color = pct > 83 ? '#dc3545' : (pct > 66 ? '#ffc107' : '#28a745');
+            html += `<div style="flex:1;min-width:80px;padding:6px;background:#f8f9fa;border-radius:6px;text-align:center">
+                <div style="font-size:10px;font-weight:bold">${m}</div>
+                <div style="height:4px;background:#dee2e6;border-radius:2px;margin:4px 0">
+                    <div style="height:100%;width:${pct}%;background:${color};border-radius:2px"></div>
+                </div>
+                <div style="font-size:10px">${h}h / 24h</div>
+            </div>`;
+        });
+        html += '</div>';
+
+        html += `<button class="btn btn-primary" onclick="saveAllocation()" style="width:100%;margin-top:12px">
+            💾 Lưu phân bổ vào Database
+        </button>`;
+
+        document.getElementById('auto-result').innerHTML = html;
+    }
+
+    async function saveAllocation() {
+        if (!_allocData) return;
+        const ngay = document.getElementById('auto-ngay').value;
+        const result = await api.post('/api/pellet/save-allocation', {
+            phan_bo: _allocData.phan_bo, ngay
+        });
+        if (result?.success) {
+            showToast(result.message, 'success');
+            document.getElementById('auto-result').innerHTML =
+                `<div style="padding:12px;background:#d4edda;border-radius:6px">✅ ${result.message}</div>`;
+            _allocData = null;
+        }
+    }
+
+    // ==================== Manual ====================
+    function addPLRow() {
+        const today = new Date().toISOString().split('T')[0];
+        const tbody = document.getElementById('pl-entry-rows');
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td><input type="date" class="pl-ngay" value="${today}" style="width:130px"></td>
+            <td><select class="pl-sp" style="width:200px">${_prodOpts()}</select></td>
+            <td><input type="number" class="pl-sl" min="0" step="0.1" value="0" style="width:80px"></td>
+            <td><select class="pl-may">${_machineOpts}</select></td>
+            <td><input type="text" class="pl-gc" placeholder="..." style="width:120px"></td>
+            <td><button class="btn btn-danger btn-sm" onclick="this.closest('tr').remove()" style="padding:2px 8px">✕</button></td>`;
+        tbody.appendChild(tr);
+    }
+
+    async function saveManualPL() {
+        const rows = document.querySelectorAll('#pl-entry-rows tr');
+        const items = [];
+        rows.forEach(row => {
+            const sp = row.querySelector('.pl-sp')?.value;
+            const sl = parseFloat(row.querySelector('.pl-sl')?.value) || 0;
+            if (sp && sl > 0) {
+                items.push({
+                    ngay: row.querySelector('.pl-ngay')?.value,
+                    id_sanpham: sp, so_luong: sl,
+                    so_may: row.querySelector('.pl-may')?.value,
+                    ghi_chu: row.querySelector('.pl-gc')?.value || ''
+                });
+            }
+        });
+        if (!items.length) { showToast('Không có dữ liệu', 'warning'); return; }
+
+        const result = await api.post('/api/pellet/create', { items });
+        document.getElementById('manual-result').innerHTML = result?.success
+            ? `<div style="padding:8px;background:#d4edda;border-radius:4px">✅ ${result.message}</div>`
+            : `<div style="padding:8px;background:#f8d7da;border-radius:4px">❌ ${result?.message || 'Lỗi'}</div>`;
+        if (result?.success) showToast(result.message, 'success');
+    }
+
+    // ==================== List ====================
+    async function loadPLList() {
+        const ngay = document.getElementById('filter-ngay').value;
+        const may = document.getElementById('filter-may').value;
+
+        let params = '?per_page=200';
+        if (ngay) params += `&ngay=${ngay}`;
+        if (may !== 'Tất cả') params += `&so_may=${encodeURIComponent(may)}`;
+
+        const result = await api.get(`/api/pellet${params}`);
+        const container = document.getElementById('pl-table');
+
+        if (!result?.data?.length) {
+            container.innerHTML = '<p class="text-muted">Không có dữ liệu</p>';
+            return;
+        }
+
+        const cols = ['ID', 'Ngày sản xuất', 'Code cám', 'Tên cám', 'Số lượng', 'Số máy',
+            'Công suất máy (tấn/giờ)', 'T/h', 'Kwh/T', 'Thời gian chạy (giờ)',
+            'Ghi chú', 'Người tạo'];
+
+        let html = `<p class="text-muted" style="font-size:12px">Tổng: ${result.total}</p>`;
+        html += '<div style="max-height:500px;overflow:auto"><table class="data-table" style="font-size:11px"><thead><tr>';
+        cols.forEach(c => html += `<th>${c}</th>`);
+        html += '<th>Xóa</th></tr></thead><tbody>';
+
+        result.data.forEach(row => {
+            html += '<tr>';
+            cols.forEach(c => {
+                let v = row[c];
+                if (['T/h', 'Kwh/T', 'Công suất máy (tấn/giờ)', 'Thời gian chạy (giờ)'].includes(c) && typeof v === 'number')
+                    v = v.toFixed(2);
+                html += `<td>${v ?? ''}</td>`;
+            });
+            html += `<td><button class="btn btn-danger btn-sm" onclick="deletePL(${row.ID})" style="padding:2px 8px;font-size:11px">🗑️</button></td></tr>`;
+        });
+        html += '</tbody></table></div>';
+        container.innerHTML = html;
+    }
+
+    async function deletePL(id) {
+        if (!confirm('Xóa?')) return;
+        const r = await api.post('/api/pellet/delete', { id });
+        if (r?.success) { showToast('Đã xóa', 'success'); loadPLList(); }
+    }
+
+    // ==================== Capacity ====================
+    async function loadCapStats() {
+        const result = await api.get('/api/pellet/capacity-stats');
+        const container = document.getElementById('cap-stats');
+
+        if (!result?.data?.length) {
+            container.innerHTML = '<p class="text-muted">Chưa có dữ liệu T/h. Upload file PL*.xlsx ở trên.</p>';
+            return;
+        }
+
+        // Summary
+        const avgTh = result.data.reduce((s, r) => s + (r.th_tb || 0), 0) / result.data.length;
+        const avgKwh = result.data.reduce((s, r) => s + (r.kwh_tb || 0), 0) / result.data.length;
+        const totalLo = result.data.reduce((s, r) => s + (r.tong_lo || 0), 0);
+
+        let html = `<div style="display:flex;gap:12px;margin-bottom:16px">
+            <div style="flex:1;padding:10px;background:#e8f5e9;border-radius:6px;text-align:center">
+                <div class="text-muted" style="font-size:11px">Máy có data</div>
+                <div style="font-weight:bold">${result.total_machines}/7</div>
+            </div>
+            <div style="flex:1;padding:10px;background:#e3f2fd;border-radius:6px;text-align:center">
+                <div class="text-muted" style="font-size:11px">T/h TB</div>
+                <div style="font-weight:bold">${avgTh.toFixed(2)}</div>
+            </div>
+            <div style="flex:1;padding:10px;background:#fff3e0;border-radius:6px;text-align:center">
+                <div class="text-muted" style="font-size:11px">Kwh/T TB</div>
+                <div style="font-weight:bold">${avgKwh.toFixed(2)}</div>
+            </div>
+            <div style="flex:1;padding:10px;background:#fce4ec;border-radius:6px;text-align:center">
+                <div class="text-muted" style="font-size:11px">Tổng lô SX</div>
+                <div style="font-weight:bold">${totalLo.toLocaleString()}</div>
+            </div>
+        </div>`;
+
+        // Table by machine
+        html += '<table class="data-table" style="font-size:11px"><thead><tr>';
+        ['Máy', 'Số loại cám', 'T/h TB', 'T/h Max', 'T/h Min', 'Kwh/T TB', 'Tổng lô', 'Cập nhật'].forEach(c => html += `<th>${c}</th>`);
+        html += '</tr></thead><tbody>';
+        result.data.forEach(r => {
+            html += `<tr>
+                <td><strong>${r['Số máy']}</strong></td>
+                <td>${r.so_loai}</td>
+                <td>${(r.th_tb || 0).toFixed(2)}</td><td>${(r.th_max || 0).toFixed(2)}</td><td>${(r.th_min || 0).toFixed(2)}</td>
+                <td>${(r.kwh_tb || 0).toFixed(2)}</td><td>${(r.tong_lo || 0).toLocaleString()}</td>
+                <td style="font-size:10px">${r.ngay_cn || ''}</td>
+            </tr>`;
+        });
+        html += '</tbody></table>';
+        container.innerHTML = html;
+
+        // Load dates for date selector
+        const dates = await api.get('/api/pellet/capacity-dates');
+        if (dates?.dates?.length) {
+            const sel = document.getElementById('cap-date');
+            sel.innerHTML = dates.dates.map(d => `<option>${d}</option>`).join('');
+        }
+    }
+
+    function toggleCapMode() {
+        const mode = document.getElementById('cap-mode').value;
+        document.getElementById('cap-machine-field').style.display = mode === 'machine' ? '' : 'none';
+        document.getElementById('cap-date-field').style.display = mode === 'date' ? '' : 'none';
+        loadCapDetail();
+    }
+
+    async function loadCapDetail() {
+        const mode = document.getElementById('cap-mode').value;
+        let url = '/api/pellet/capacity-detail?';
+        if (mode === 'machine') url += `so_may=${document.getElementById('cap-machine').value}`;
+        else url += `ngay=${document.getElementById('cap-date').value}`;
+
+        const result = await api.get(url);
+        const container = document.getElementById('cap-detail');
+
+        if (!result?.data?.length) {
+            container.innerHTML = '<p class="text-muted">Không có dữ liệu</p>';
+            return;
+        }
+
+        let html = '<table class="data-table" style="font-size:11px"><thead><tr>';
+        const cols = mode === 'date'
+            ? ['Số máy', 'Code cám', 'T/h', 'Kwh/T', 'Số lô', 'Tên cám', 'Vật nuôi', 'Đánh giá']
+            : ['Code cám', 'T/h', 'Kwh/T', 'Số lô', 'Ngày', 'Tên cám', 'Đánh giá'];
+        cols.forEach(c => html += `<th>${c}</th>`);
+        html += '</tr></thead><tbody>';
+
+        result.data.forEach(r => {
+            const bg = r.danh_gia?.includes('🔴') ? 'background:#fff3cd' : '';
+            html += `<tr style="${bg}">`;
+            cols.forEach(c => {
+                let v = r[c === 'Đánh giá' ? 'danh_gia' : c];
+                if (['T/h', 'Kwh/T'].includes(c) && typeof v === 'number') v = v.toFixed(2);
+                html += `<td>${v ?? ''}</td>`;
+            });
+            html += '</tr>';
+        });
+        html += '</tbody></table>';
+        container.innerHTML = html;
+    }
+
+    async function uploadCapacity() {
+        const file = document.getElementById('cap-upload').files[0];
+        if (!file) { showToast('Chọn file', 'warning'); return; }
+        const fd = new FormData(); fd.append('file', file);
+        document.getElementById('cap-upload-result').innerHTML = '<span class="text-muted">Đang import...</span>';
+
+        const result = await api.upload('/api/pellet/upload-capacity', fd);
+        if (result?.success) {
+            document.getElementById('cap-upload-result').innerHTML =
+                `<div style="padding:6px;background:#d4edda;border-radius:4px">✅ ${result.message}</div>`;
+            showToast('Import thành công', 'success');
+            loadCapStats();
+        } else {
+            document.getElementById('cap-upload-result').innerHTML =
+                `<div style="padding:6px;background:#f8d7da;border-radius:4px">❌ ${result?.message || 'Lỗi'}</div>`;
+        }
+    }
+
+    initPage();
+</script>
+{% endblock %}

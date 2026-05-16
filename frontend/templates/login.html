@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Đăng nhập - Kế hoạch Sản xuất</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+
+<body class="login-body">
+    <div class="login-container">
+        <div class="login-card">
+            <div class="login-header">
+                <img src="{{ url_for('project_images', filename='logo.png') }}" alt="Logo" class="login-logo"
+                    onerror="this.style.display='none'">
+                <h1>Kế hoạch Sản xuất</h1>
+                <p class="login-subtitle">Đăng nhập để tiếp tục</p>
+            </div>
+
+            <form id="login-form" onsubmit="handleLogin(event)">
+                <div class="form-group">
+                    <label for="username">
+                        <i class="bi bi-person"></i> Username
+                    </label>
+                    <input type="text" id="username" name="username" placeholder="Nhập username" required
+                        autocomplete="username" autofocus>
+                </div>
+
+                <div class="form-group">
+                    <label for="password">
+                        <i class="bi bi-lock"></i> Password
+                    </label>
+                    <div class="password-wrapper">
+                        <input type="password" id="password" name="password" placeholder="Nhập password" required
+                            autocomplete="current-password">
+                        <button type="button" class="btn-toggle-password" onclick="togglePassword()">
+                            <i class="bi bi-eye" id="password-icon"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div id="login-error" class="error-message" style="display:none;"></div>
+
+                <button type="submit" class="btn-login" id="btn-login">
+                    <span id="login-text">Đăng nhập</span>
+                    <span id="login-spinner" style="display:none;"><i class="bi bi-arrow-repeat spin"></i></span>
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        function togglePassword() {
+            const input = document.getElementById('password');
+            const icon = document.getElementById('password-icon');
+            if (input.type === 'password') {
+                input.type = 'text';
+                icon.className = 'bi bi-eye-slash';
+            } else {
+                input.type = 'password';
+                icon.className = 'bi bi-eye';
+            }
+        }
+
+        async function handleLogin(e) {
+            e.preventDefault();
+
+            const btn = document.getElementById('btn-login');
+            const text = document.getElementById('login-text');
+            const spinner = document.getElementById('login-spinner');
+            const errorDiv = document.getElementById('login-error');
+
+            btn.disabled = true;
+            text.style.display = 'none';
+            spinner.style.display = 'inline';
+            errorDiv.style.display = 'none';
+
+            try {
+                const response = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        username: document.getElementById('username').value,
+                        password: document.getElementById('password').value
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    window.location.href = '/dashboard';
+                } else {
+                    errorDiv.textContent = data.message || 'Đăng nhập thất bại';
+                    errorDiv.style.display = 'block';
+                }
+            } catch (err) {
+                errorDiv.textContent = 'Lỗi kết nối server';
+                errorDiv.style.display = 'block';
+            } finally {
+                btn.disabled = false;
+                text.style.display = 'inline';
+                spinner.style.display = 'none';
+            }
+        }
+    </script>
+</body>
+
+</html>

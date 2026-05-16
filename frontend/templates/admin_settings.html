@@ -1,0 +1,263 @@
+{% extends "base.html" %}
+
+{% block title %}Cài đặt - Kế hoạch Sản xuất{% endblock %}
+
+{% block content %}
+<div class="form-section">
+    <h3><i class="bi bi-gear"></i> Quản lý Cài đặt Hệ thống</h3>
+    
+    <div id="settings-loading" class="text-center text-muted" style="padding:40px">
+        <i class="bi bi-arrow-repeat spin"></i> Đang tải cài đặt...
+    </div>
+
+    <form id="settings-form" onsubmit="saveSettings(event)" style="display:none">
+        <!-- Cài đặt chung -->
+        <div class="settings-group">
+            <h4><i class="bi bi-sliders"></i> Cài đặt chung</h4>
+            <div class="form-row">
+                <div class="form-field">
+                    <label>Tên dự án</label>
+                    <input type="text" id="cfg-project_name" placeholder="Tên hiển thị trên sidebar">
+                </div>
+                <div class="form-field">
+                    <label>Icon tiêu đề <a href="https://icons.getbootstrap.com/" target="_blank" class="text-muted" style="font-size:11px">(Tham khảo)</a></label>
+                    <input type="text" id="cfg-style_menu_icon" placeholder="Ví dụ: clipboard-data">
+                </div>
+            </div>
+        </div>
+
+        <!-- Cài đặt giao diện -->
+        <div class="settings-group">
+            <h4><i class="bi bi-palette"></i> Cài đặt giao diện Sidebar</h4>
+            <div class="form-row">
+                <div class="form-field">
+                    <label>Màu nền Sidebar</label>
+                    <div class="color-field">
+                        <input type="color" id="cfg-style_container_bg" class="color-picker">
+                        <input type="text" id="cfg-style_container_bg-text" class="color-text" placeholder="#2E3440">
+                    </div>
+                </div>
+                <div class="form-field">
+                    <label>Màu Icon Menu</label>
+                    <div class="color-field">
+                        <input type="color" id="cfg-style_icon_color" class="color-picker">
+                        <input type="text" id="cfg-style_icon_color-text" class="color-text" placeholder="#88C0D0">
+                    </div>
+                </div>
+                <div class="form-field">
+                    <label>Cỡ chữ Icon Menu</label>
+                    <input type="text" id="cfg-style_icon_font_size" placeholder="22px">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-field">
+                    <label>Cỡ chữ Chức năng</label>
+                    <input type="text" id="cfg-style_nav_link_font_size" placeholder="16px">
+                </div>
+                <div class="form-field">
+                    <label>Màu chữ (chưa chọn)</label>
+                    <div class="color-field">
+                        <input type="color" id="cfg-style_nav_link_color" class="color-picker">
+                        <input type="text" id="cfg-style_nav_link_color-text" class="color-text" placeholder="#ECEFF4">
+                    </div>
+                </div>
+                <div class="form-field">
+                    <label>Màu nền khi hover</label>
+                    <div class="color-field">
+                        <input type="color" id="cfg-style_nav_link_hover_color" class="color-picker">
+                        <input type="text" id="cfg-style_nav_link_hover_color-text" class="color-text" placeholder="#4C566A">
+                    </div>
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-field">
+                    <label>Màu nền khi được chọn</label>
+                    <div class="color-field">
+                        <input type="color" id="cfg-style_nav_link_selected_bg" class="color-picker">
+                        <input type="text" id="cfg-style_nav_link_selected_bg-text" class="color-text" placeholder="#81A1C1">
+                    </div>
+                </div>
+                <div class="form-field">
+                    <label>Màu chữ (đã chọn)</label>
+                    <div class="color-field">
+                        <input type="color" id="cfg-style_nav_link_selected_color" class="color-picker">
+                        <input type="text" id="cfg-style_nav_link_selected_color-text" class="color-text" placeholder="#2E3440">
+                    </div>
+                </div>
+                <div class="form-field">
+                    <label>Font chữ Menu</label>
+                    <select id="cfg-style_font_family">
+                        <option value="sans-serif">sans-serif</option>
+                        <option value="serif">serif</option>
+                        <option value="monospace">monospace</option>
+                        <option value="Arial">Arial</option>
+                        <option value="Times New Roman">Times New Roman</option>
+                        <option value="Verdana">Verdana</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <!-- Preview -->
+        <div class="settings-group">
+            <h4><i class="bi bi-eye"></i> Xem trước Sidebar</h4>
+            <div id="sidebar-preview" class="sidebar-preview">
+                <div class="preview-header">
+                    <span id="preview-title">Kế hoạch Sản xuất</span>
+                </div>
+                <div class="preview-item active">
+                    <i class="bi bi-house-door"></i> Trang chủ
+                </div>
+                <div class="preview-item">
+                    <i class="bi bi-box"></i> Sản phẩm
+                </div>
+                <div class="preview-item hover">
+                    <i class="bi bi-cart"></i> Đặt hàng (hover)
+                </div>
+            </div>
+        </div>
+
+        <div class="mt-2" style="display:flex; gap:12px">
+            <button type="submit" class="btn btn-primary" id="btn-save-settings">
+                <i class="bi bi-save"></i> Lưu thay đổi
+            </button>
+            <button type="button" class="btn btn-secondary" onclick="loadSettings()">
+                <i class="bi bi-arrow-counterclockwise"></i> Tải lại
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const colorKeys = [
+        'style_container_bg', 'style_icon_color', 'style_nav_link_color',
+        'style_nav_link_hover_color', 'style_nav_link_selected_bg', 'style_nav_link_selected_color'
+    ];
+
+    let originalSettings = {};
+
+    async function loadSettings() {
+        const loading = document.getElementById('settings-loading');
+        const form = document.getElementById('settings-form');
+        loading.style.display = 'block';
+        form.style.display = 'none';
+
+        try {
+            const data = await api.get('/api/admin/settings');
+            if (data && data.settings) {
+                originalSettings = data.settings;
+                populateForm(data.settings);
+                form.style.display = 'block';
+            }
+        } catch (e) {
+            showToast('Lỗi tải cài đặt', 'error');
+        }
+        loading.style.display = 'none';
+    }
+
+    function populateForm(settings) {
+        for (const [key, value] of Object.entries(settings)) {
+            const el = document.getElementById(`cfg-${key}`);
+            if (!el) continue;
+
+            if (colorKeys.includes(key)) {
+                el.value = value || '#000000';
+                const textEl = document.getElementById(`cfg-${key}-text`);
+                if (textEl) textEl.value = value || '';
+            } else if (el.tagName === 'SELECT') {
+                el.value = value || el.options[0]?.value || '';
+            } else {
+                el.value = value || '';
+            }
+        }
+        updatePreview();
+    }
+
+    // Sync color pickers
+    colorKeys.forEach(key => {
+        const picker = document.getElementById(`cfg-${key}`);
+        const text = document.getElementById(`cfg-${key}-text`);
+        if (picker && text) {
+            picker.addEventListener('input', () => {
+                text.value = picker.value;
+                updatePreview();
+            });
+            text.addEventListener('input', () => {
+                if (/^#[0-9a-fA-F]{6}$/.test(text.value)) {
+                    picker.value = text.value;
+                    updatePreview();
+                }
+            });
+        }
+    });
+
+    function updatePreview() {
+        const preview = document.getElementById('sidebar-preview');
+        if (!preview) return;
+
+        const bg = document.getElementById('cfg-style_container_bg')?.value || '#2E3440';
+        const iconColor = document.getElementById('cfg-style_icon_color')?.value || '#88C0D0';
+        const textColor = document.getElementById('cfg-style_nav_link_color')?.value || '#ECEFF4';
+        const hoverColor = document.getElementById('cfg-style_nav_link_hover_color')?.value || '#4C566A';
+        const selectedBg = document.getElementById('cfg-style_nav_link_selected_bg')?.value || '#81A1C1';
+        const selectedColor = document.getElementById('cfg-style_nav_link_selected_color')?.value || '#2E3440';
+        const projectName = document.getElementById('cfg-project_name')?.value || 'Kế hoạch Sản xuất';
+
+        preview.style.background = bg;
+        preview.querySelectorAll('.preview-item').forEach(item => {
+            item.style.color = textColor;
+            item.querySelectorAll('i').forEach(i => i.style.color = iconColor);
+        });
+        preview.querySelectorAll('.preview-item.active').forEach(item => {
+            item.style.background = selectedBg;
+            item.style.color = selectedColor;
+            item.querySelectorAll('i').forEach(i => i.style.color = selectedColor);
+        });
+        preview.querySelectorAll('.preview-item.hover').forEach(item => {
+            item.style.background = hoverColor;
+        });
+        const title = document.getElementById('preview-title');
+        if (title) { title.textContent = projectName; title.style.color = textColor; }
+    }
+
+    async function saveSettings(e) {
+        e.preventDefault();
+        const btn = document.getElementById('btn-save-settings');
+        btn.disabled = true;
+
+        const settings = {};
+        const allKeys = [
+            'project_name', 'style_menu_icon', 'style_container_bg', 'style_icon_color',
+            'style_icon_font_size', 'style_nav_link_font_size', 'style_nav_link_color',
+            'style_nav_link_hover_color', 'style_nav_link_selected_bg',
+            'style_nav_link_selected_color', 'style_font_family'
+        ];
+
+        allKeys.forEach(key => {
+            if (colorKeys.includes(key)) {
+                const textEl = document.getElementById(`cfg-${key}-text`);
+                settings[key] = textEl ? textEl.value : document.getElementById(`cfg-${key}`)?.value || '';
+            } else {
+                settings[key] = document.getElementById(`cfg-${key}`)?.value || '';
+            }
+        });
+
+        try {
+            const result = await api.post('/api/admin/settings', { settings });
+            if (result && result.success) {
+                showToast(result.message, 'success');
+            } else {
+                showToast(result?.message || 'Lỗi lưu', 'error');
+            }
+        } catch (err) {
+            showToast('Lỗi kết nối', 'error');
+        } finally {
+            btn.disabled = false;
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', loadSettings);
+</script>
+{% endblock %}

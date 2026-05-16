@@ -1,0 +1,455 @@
+{% extends "base.html" %}
+{% block title %}Lịch tháng{% endblock %}
+
+{% block head %}
+<style>
+    .lt-controls {
+        display: flex;
+        gap: 12px;
+        align-items: flex-end;
+        margin-bottom: 12px;
+        flex-wrap: wrap;
+    }
+
+    .lt-legend {
+        display: flex;
+        gap: 18px;
+        margin: 8px 0 14px;
+        font-size: 12px;
+        flex-wrap: wrap;
+        align-items: center;
+    }
+
+    .lt-legend .chip {
+        padding: 2px 8px;
+        border-radius: 4px;
+    }
+
+    .lt-grid {
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+        gap: 6px;
+    }
+
+    .lt-grid .wd {
+        text-align: center;
+        font-weight: 600;
+        color: #666;
+        padding: 4px 0;
+        font-size: 12px;
+    }
+
+    .lt-cell {
+        border: 1px solid #e0e0e0;
+        border-radius: 8px;
+        padding: 8px;
+        min-height: 90px;
+        background: #fafafa;
+        cursor: pointer;
+        transition: transform 0.1s, box-shadow 0.1s;
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+    }
+
+    .lt-cell:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+    }
+
+    .lt-cell.empty {
+        background: transparent;
+        border: none;
+        cursor: default;
+    }
+
+    .lt-cell.has-data {
+        background: #e8f5e9;
+        border-color: #4caf50;
+    }
+
+    .lt-cell.today {
+        background: #e3f2fd;
+        border: 2px solid #1976d2;
+    }
+
+    .lt-cell.selected {
+        outline: 2px solid #ff9800;
+        outline-offset: 1px;
+    }
+
+    .lt-cell .day-num {
+        font-weight: 700;
+        font-size: 15px;
+        color: #333;
+    }
+
+    .lt-cell .ln {
+        font-size: 11px;
+    }
+
+    .lt-cell .ln.none {
+        color: #bbb;
+    }
+
+    .ln.s { color: #2e7d32; }
+    .ln.p { color: #1565c0; }
+    .ln.l { color: #c62828; }
+
+    .lt-detail {
+        margin-top: 18px;
+        border: 1px solid #e0e0e0;
+        border-radius: 8px;
+        padding: 12px;
+        background: #fff;
+    }
+
+    .lt-metrics {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 10px;
+        margin: 10px 0;
+    }
+
+    .lt-metric {
+        background: #f5f7fb;
+        border-radius: 6px;
+        padding: 10px;
+        text-align: center;
+    }
+
+    .lt-metric .label {
+        font-size: 11px;
+        color: #666;
+    }
+
+    .lt-metric .value {
+        font-size: 18px;
+        font-weight: 700;
+    }
+
+    .lt-metric .kg {
+        font-size: 11px;
+        color: #555;
+    }
+
+    .lt-tabs {
+        display: flex;
+        gap: 6px;
+        margin: 10px 0 8px;
+        border-bottom: 1px solid #e0e0e0;
+    }
+
+    .lt-tab-btn {
+        padding: 6px 12px;
+        border: none;
+        background: transparent;
+        cursor: pointer;
+        font-size: 13px;
+        border-bottom: 2px solid transparent;
+    }
+
+    .lt-tab-btn.active {
+        color: #1976d2;
+        border-bottom-color: #1976d2;
+        font-weight: 600;
+    }
+
+    .lt-summary {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 10px;
+        margin-top: 14px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<h2><i class="bi bi-calendar3"></i> Lịch tháng</h2>
+<p class="text-muted">Theo dõi Stock Old / Packing / Sale theo ngày</p>
+
+<div class="form-section">
+    <div class="lt-controls">
+        <div class="form-field" style="width:140px">
+            <label>📆 Tháng</label>
+            <select id="lt-month"></select>
+        </div>
+        <div class="form-field" style="width:140px">
+            <label>📅 Năm</label>
+            <select id="lt-year"></select>
+        </div>
+        <div class="form-field">
+            <button class="btn btn-primary" onclick="loadCalendar()">
+                <i class="bi bi-arrow-clockwise"></i> Tải lại
+            </button>
+        </div>
+    </div>
+
+    <div class="lt-legend">
+        <span><strong class="ln s">S</strong> = Stock Old</span>
+        <span><strong class="ln p">P</strong> = Packing</span>
+        <span><strong class="ln l">L</strong> = Sale</span>
+        <span class="chip" style="background:#e3f2fd">Hôm nay</span>
+        <span class="chip" style="background:#e8f5e9">Có dữ liệu</span>
+    </div>
+
+    <div id="lt-detail"></div>
+
+    <div class="lt-grid" id="lt-grid"></div>
+
+    <div id="lt-summary"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const WEEKDAYS = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
+    const TYPE_LABELS = { stockold: 'Stock Old', packing: 'Packing', sale: 'Sale' };
+
+    let _year = null;
+    let _month = null;
+    let _dailyData = [];   // from API
+    let _selectedDate = null;  // YYYY-MM-DD
+    let _activeTab = 'stockold';
+
+    function fmtInt(n) {
+        if (n === null || n === undefined || isNaN(n)) return '0';
+        return Number(n).toLocaleString();
+    }
+
+    function initPage() {
+        const now = new Date();
+        const monthSel = document.getElementById('lt-month');
+        for (let m = 1; m <= 12; m++) {
+            monthSel.innerHTML += `<option value="${m}">Tháng ${m}</option>`;
+        }
+        monthSel.value = now.getMonth() + 1;
+
+        const yearSel = document.getElementById('lt-year');
+        const currentY = now.getFullYear();
+        for (let y = currentY - 2; y <= currentY + 5; y++) {
+            yearSel.innerHTML += `<option value="${y}">${y}</option>`;
+        }
+        yearSel.value = currentY;
+
+        loadCalendar();
+    }
+
+    async function loadCalendar() {
+        _year = parseInt(document.getElementById('lt-year').value);
+        _month = parseInt(document.getElementById('lt-month').value);
+
+        const grid = document.getElementById('lt-grid');
+        grid.innerHTML = '<div style="grid-column:1/8;padding:20px;text-align:center" class="text-muted">Đang tải...</div>';
+
+        const r = await api.get(`/api/lichthang/daily-counts?year=${_year}&month=${_month}`);
+        if (!r?.success) {
+            grid.innerHTML = '<div style="grid-column:1/8;padding:20px;text-align:center;color:#c62828">Lỗi tải dữ liệu</div>';
+            return;
+        }
+
+        _dailyData = r.data || [];
+        renderGrid();
+        renderSummary();
+        // Nếu đang chọn ngày ngoài tháng mới chọn, clear detail
+        if (_selectedDate && !_selectedDate.startsWith(`${_year}-${String(_month).padStart(2, '0')}`)) {
+            _selectedDate = null;
+            document.getElementById('lt-detail').innerHTML = '';
+        } else if (_selectedDate) {
+            // Làm mới panel detail (metric có thể thay đổi)
+            showDetail(_selectedDate);
+        }
+    }
+
+    function getDayEntry(day) {
+        return _dailyData.find(d => d.day === day) || {
+            stockold: 0, stockold_kg: 0, packing: 0, packing_kg: 0, sale: 0, sale_kg: 0
+        };
+    }
+
+    function renderGrid() {
+        const grid = document.getElementById('lt-grid');
+        const daysInMonth = new Date(_year, _month, 0).getDate();
+        // First weekday: JS Sunday=0, cần Monday=0
+        const firstWd = (new Date(_year, _month - 1, 1).getDay() + 6) % 7;
+
+        const today = new Date();
+        const isSameMonth = today.getFullYear() === _year && (today.getMonth() + 1) === _month;
+
+        let html = '';
+        WEEKDAYS.forEach(w => html += `<div class="wd">${w}</div>`);
+
+        for (let i = 0; i < firstWd; i++) {
+            html += '<div class="lt-cell empty"></div>';
+        }
+
+        for (let d = 1; d <= daysInMonth; d++) {
+            const entry = getDayEntry(d);
+            const hasData = entry.stockold > 0 || entry.packing > 0 || entry.sale > 0;
+            const dateStr = `${_year}-${String(_month).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+            const isToday = isSameMonth && today.getDate() === d;
+            const isSelected = _selectedDate === dateStr;
+
+            const cls = ['lt-cell'];
+            if (isToday) cls.push('today');
+            else if (hasData) cls.push('has-data');
+            if (isSelected) cls.push('selected');
+
+            html += `
+                <div class="${cls.join(' ')}" onclick="showDetail('${dateStr}')">
+                    <div class="day-num">${d}</div>
+                    <div class="ln s ${entry.stockold ? '' : 'none'}">S: ${entry.stockold || '-'}</div>
+                    <div class="ln p ${entry.packing ? '' : 'none'}">P: ${entry.packing || '-'}</div>
+                    <div class="ln l ${entry.sale ? '' : 'none'}">L: ${entry.sale || '-'}</div>
+                </div>
+            `;
+        }
+
+        grid.innerHTML = html;
+    }
+
+    function renderSummary() {
+        let tS = 0, tP = 0, tL = 0, tSkg = 0, tPkg = 0, tLkg = 0, daysData = 0;
+        _dailyData.forEach(d => {
+            tS += d.stockold; tP += d.packing; tL += d.sale;
+            tSkg += d.stockold_kg; tPkg += d.packing_kg; tLkg += d.sale_kg;
+            if (d.stockold || d.packing || d.sale) daysData++;
+        });
+        const daysInMonth = _dailyData.length || new Date(_year, _month, 0).getDate();
+
+        document.getElementById('lt-summary').innerHTML = `
+            <h3 style="margin-top:18px">📊 Thống kê tháng ${_month}/${_year}</h3>
+            <div class="lt-summary">
+                <div class="lt-metric">
+                    <div class="label">📦 Stock Old</div>
+                    <div class="value">${fmtInt(tS)}</div>
+                    <div class="kg">${fmtInt(tSkg)} kg</div>
+                </div>
+                <div class="lt-metric">
+                    <div class="label">📋 Packing</div>
+                    <div class="value">${fmtInt(tP)}</div>
+                    <div class="kg">${fmtInt(tPkg)} kg</div>
+                </div>
+                <div class="lt-metric">
+                    <div class="label">💰 Sale</div>
+                    <div class="value">${fmtInt(tL)}</div>
+                    <div class="kg">${fmtInt(tLkg)} kg</div>
+                </div>
+                <div class="lt-metric">
+                    <div class="label">📅 Ngày có dữ liệu</div>
+                    <div class="value">${daysData}/${daysInMonth}</div>
+                </div>
+            </div>`;
+    }
+
+    async function showDetail(dateStr) {
+        _selectedDate = dateStr;
+        // Re-render grid để cập nhật highlight
+        renderGrid();
+
+        const [yy, mm, dd] = dateStr.split('-');
+        const entry = getDayEntry(parseInt(dd));
+
+        const detailEl = document.getElementById('lt-detail');
+        detailEl.innerHTML = `
+            <div class="lt-detail">
+                <div style="display:flex;justify-content:space-between;align-items:center">
+                    <h3 style="margin:0">📋 Chi tiết ngày ${dd}/${mm}/${yy}</h3>
+                    <button class="btn btn-secondary btn-sm" onclick="closeDetail()">
+                        <i class="bi bi-x-lg"></i> Đóng
+                    </button>
+                </div>
+
+                <div class="lt-metrics">
+                    <div class="lt-metric">
+                        <div class="label">📦 Stock Old</div>
+                        <div class="value">${entry.stockold} records</div>
+                        <div class="kg">${fmtInt(entry.stockold_kg)} kg</div>
+                    </div>
+                    <div class="lt-metric">
+                        <div class="label">📋 Packing</div>
+                        <div class="value">${entry.packing} records</div>
+                        <div class="kg">${fmtInt(entry.packing_kg)} kg</div>
+                    </div>
+                    <div class="lt-metric">
+                        <div class="label">💰 Sale</div>
+                        <div class="value">${entry.sale} records</div>
+                        <div class="kg">${fmtInt(entry.sale_kg)} kg</div>
+                    </div>
+                    <div class="lt-metric">
+                        <div class="label">📊 Tổng cộng</div>
+                        <div class="value">${entry.stockold + entry.packing + entry.sale} records</div>
+                        <div class="kg">${fmtInt(entry.stockold_kg + entry.packing_kg + entry.sale_kg)} kg</div>
+                    </div>
+                </div>
+
+                <div class="lt-tabs">
+                    <button class="lt-tab-btn ${_activeTab === 'stockold' ? 'active' : ''}" onclick="switchDetailTab('stockold')">
+                        📦 Stock Old (${entry.stockold})
+                    </button>
+                    <button class="lt-tab-btn ${_activeTab === 'packing' ? 'active' : ''}" onclick="switchDetailTab('packing')">
+                        📋 Packing (${entry.packing})
+                    </button>
+                    <button class="lt-tab-btn ${_activeTab === 'sale' ? 'active' : ''}" onclick="switchDetailTab('sale')">
+                        💰 Sale (${entry.sale})
+                    </button>
+                </div>
+                <div id="lt-tab-body"><p class="text-muted">Đang tải...</p></div>
+            </div>
+        `;
+        loadDetailTab();
+    }
+
+    function switchDetailTab(tab) {
+        _activeTab = tab;
+        // Cập nhật trạng thái button tab
+        document.querySelectorAll('.lt-tab-btn').forEach(b => b.classList.remove('active'));
+        const idx = { stockold: 0, packing: 1, sale: 2 }[tab];
+        document.querySelectorAll('.lt-tab-btn')[idx]?.classList.add('active');
+        loadDetailTab();
+    }
+
+    async function loadDetailTab() {
+        if (!_selectedDate) return;
+        const body = document.getElementById('lt-tab-body');
+        body.innerHTML = '<p class="text-muted">Đang tải...</p>';
+
+        const r = await api.get(`/api/lichthang/detail?date=${_selectedDate}&type=${_activeTab}`);
+        if (!r?.success) {
+            body.innerHTML = `<p style="color:#c62828">Lỗi tải dữ liệu</p>`;
+            return;
+        }
+
+        if (!r.data?.length) {
+            body.innerHTML = `<p class="text-muted">Không có dữ liệu ${TYPE_LABELS[_activeTab]} cho ngày này</p>`;
+            return;
+        }
+
+        const cols = ['ID', 'Code cám', 'Tên cám', 'Số lượng', 'Mã', 'Ngày', 'Ghi chú', 'Người tạo', 'Thời gian tạo'];
+        let html = `<p class="text-muted" style="font-size:12px">Tổng: ${r.total} record · ${fmtInt(r.total_kg)} kg</p>`;
+        html += '<div style="max-height:400px;overflow:auto"><table class="data-table" style="font-size:11px"><thead><tr>';
+        cols.forEach(c => html += `<th>${c}</th>`);
+        html += '</tr></thead><tbody>';
+
+        r.data.forEach(row => {
+            html += '<tr>';
+            cols.forEach(c => {
+                let v = row[c];
+                if (c === 'Số lượng' && typeof v === 'number') v = v.toLocaleString();
+                html += `<td>${v ?? ''}</td>`;
+            });
+            html += '</tr>';
+        });
+        html += '</tbody></table></div>';
+        body.innerHTML = html;
+    }
+
+    function closeDetail() {
+        _selectedDate = null;
+        document.getElementById('lt-detail').innerHTML = '';
+        renderGrid();
+    }
+
+    initPage();
+</script>
+{% endblock %}

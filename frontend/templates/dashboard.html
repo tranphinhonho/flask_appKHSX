@@ -1,0 +1,185 @@
+{% extends "base.html" %}
+
+{% block title %}Trang chủ - Kế hoạch Sản xuất{% endblock %}
+
+{% block content %}
+<div class="dashboard-welcome">
+    <h2><i class="bi bi-house-door"></i> Chào mừng, {{ fullname }}!</h2>
+    <p>Sử dụng menu bên trái để truy cập các chức năng của ứng dụng.</p>
+</div>
+
+<!-- Stats Cards -->
+<div class="stats-grid" id="stats-grid">
+    <div class="stat-card stat-card-blue">
+        <div class="stat-icon"><i class="bi bi-box-seam"></i></div>
+        <div class="stat-info">
+            <span class="stat-value" id="stat-products">--</span>
+            <span class="stat-label">Sản phẩm</span>
+        </div>
+    </div>
+    <div class="stat-card stat-card-green">
+        <div class="stat-icon"><i class="bi bi-cart-check"></i></div>
+        <div class="stat-info">
+            <span class="stat-value" id="stat-orders">--</span>
+            <span class="stat-label">Đơn hàng</span>
+        </div>
+    </div>
+    <div class="stat-card stat-card-purple">
+        <div class="stat-icon"><i class="bi bi-people"></i></div>
+        <div class="stat-info">
+            <span class="stat-value" id="stat-users">--</span>
+            <span class="stat-label">Người dùng</span>
+        </div>
+    </div>
+    <div class="stat-card stat-card-orange">
+        <div class="stat-icon"><i class="bi bi-layers"></i></div>
+        <div class="stat-info">
+            <span class="stat-value" id="stat-batching">--</span>
+            <span class="stat-label">Batching</span>
+        </div>
+    </div>
+    <div class="stat-card stat-card-teal">
+        <div class="stat-icon"><i class="bi bi-archive"></i></div>
+        <div class="stat-info">
+            <span class="stat-value" id="stat-stock">--</span>
+            <span class="stat-label">Stock</span>
+        </div>
+    </div>
+    <div class="stat-card stat-card-red">
+        <div class="stat-icon"><i class="bi bi-shield-check"></i></div>
+        <div class="stat-info">
+            <span class="stat-value" id="stat-roles">--</span>
+            <span class="stat-label">Vai trò</span>
+        </div>
+    </div>
+</div>
+
+<!-- Quick Access -->
+<div class="quick-access-section">
+    <h3><i class="bi bi-lightning"></i> Truy cập nhanh</h3>
+    <div class="quick-grid">
+        <a href="/page/sanpham" class="quick-card">
+            <i class="bi bi-box-seam"></i>
+            <span>Danh mục sản phẩm</span>
+        </a>
+        <a href="/page/dathang" class="quick-card">
+            <i class="bi bi-cart-check"></i>
+            <span>Lệnh hàng</span>
+        </a>
+        <a href="/page/stockhomnay" class="quick-card">
+            <i class="bi bi-clipboard-data"></i>
+            <span>Stock đầu ngày</span>
+        </a>
+        <a href="/page/plan" class="quick-card">
+            <i class="bi bi-calendar-check"></i>
+            <span>Plan</span>
+        </a>
+        <a href="/page/sale" class="quick-card">
+            <i class="bi bi-graph-up"></i>
+            <span>Sale</span>
+        </a>
+        <a href="/page/packing" class="quick-card">
+            <i class="bi bi-box2"></i>
+            <span>Packing</span>
+        </a>
+        <a href="/page/batching" class="quick-card">
+            <i class="bi bi-layers"></i>
+            <span>Batching</span>
+        </a>
+        <a href="/page/pellet" class="quick-card">
+            <i class="bi bi-circle"></i>
+            <span>Pellet Plan</span>
+        </a>
+    </div>
+</div>
+
+<!-- System Info -->
+<div class="sys-info-section">
+    <div class="sys-info-card">
+        <i class="bi bi-person-circle"></i>
+        <div>
+            <strong>{{ fullname }}</strong>
+            <small class="text-muted">({{ username }})</small>
+        </div>
+    </div>
+    <div class="sys-info-card">
+        <i class="bi bi-clock"></i>
+        <div>
+            <strong id="current-time">--</strong>
+            <small class="text-muted">Thời gian hiện tại</small>
+        </div>
+    </div>
+<div class="sys-info-card">
+        <i class="bi bi-server"></i>
+        <div>
+            <strong>Flask App</strong>
+            <small class="text-muted" id="sys-db-info">v3.0</small>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Load stats
+    async function loadStats() {
+        try {
+            const data = await api.get('/api/admin/stats');
+            if (data && data.stats) {
+                const s = data.stats;
+                animateValue('stat-products', s.products || 0);
+                animateValue('stat-orders', s.orders || 0);
+                animateValue('stat-users', s.users || 0);
+                animateValue('stat-batching', s.batching || 0);
+                animateValue('stat-stock', s.stock || 0);
+                animateValue('stat-roles', s.roles || 0);
+            }
+        } catch (e) {
+            console.error('Stats error:', e);
+        }
+    }
+
+    // Animate counter
+    function animateValue(elementId, end) {
+        const el = document.getElementById(elementId);
+        if (!el) return;
+        if (end === 0) { el.textContent = '0'; return; }
+        
+        const duration = 800;
+        const start = 0;
+        const startTime = performance.now();
+        
+        function update(currentTime) {
+            const elapsed = currentTime - startTime;
+            const progress = Math.min(elapsed / duration, 1);
+            // Easing
+            const eased = 1 - Math.pow(1 - progress, 3);
+            const value = Math.floor(eased * end);
+            el.textContent = value.toLocaleString();
+            
+            if (progress < 1) {
+                requestAnimationFrame(update);
+            } else {
+                el.textContent = end.toLocaleString();
+            }
+        }
+        
+        requestAnimationFrame(update);
+    }
+
+    // Update time
+    function updateTime() {
+        const el = document.getElementById('current-time');
+        if (el) {
+            const now = new Date();
+            el.textContent = now.toLocaleDateString('vi-VN') + ' ' + now.toLocaleTimeString('vi-VN');
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        loadStats();
+        updateTime();
+        setInterval(updateTime, 1000);
+    });
+</script>
+{% endblock %}
