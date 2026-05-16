@@ -292,6 +292,10 @@
     var transferPlanData = null;
     var dt = null;
 
+    // DEBUG: Mark script start
+    console.log('[DATHANG] Script started, DataTable available:', typeof DataTable);
+    window.__dathang_script_started = true;
+
     // === TABS ===
     document.querySelectorAll('#dathang-tabs .tab-btn').forEach(btn => {
         btn.addEventListener('click', function () {
@@ -858,23 +862,30 @@
     }
 
     try {
-    dt = new DatHangTable('dathang-table', {
-        apiUrl: '/api/dathang',
-        editUrl: '/api/dathang',
-        columns: columns,
-        searchColumns: ['Mã đặt hàng', 'Tên cám', 'Code cám'],
-        perPage: 20,
-        onDelete: async function (ids) {
-            const result = await api.post('/api/dathang/delete', { ids: ids });
-            if (result && result.success) {
-                showToast(result.message, 'success');
-                dt.loadData();
-            } else {
-                showToast(result?.message || 'Lỗi khi xóa', 'error');
+    if (typeof DataTable === 'undefined') {
+        document.getElementById('dathang-table').innerHTML = '<div style="padding:20px;background:#f8d7da;border:1px solid #f5c6cb;border-radius:8px;color:#721c24"><strong>⚠️ DataTable class not loaded!</strong><br>app.js may not have loaded correctly. Try Ctrl+Shift+R.</div>';
+    } else {
+        dt = new DatHangTable('dathang-table', {
+            apiUrl: '/api/dathang',
+            editUrl: '/api/dathang',
+            columns: columns,
+            searchColumns: ['Mã đặt hàng', 'Tên cám', 'Code cám'],
+            perPage: 20,
+            onDelete: async function (ids) {
+                const result = await api.post('/api/dathang/delete', { ids: ids });
+                if (result && result.success) {
+                    showToast(result.message, 'success');
+                    dt.loadData();
+                } else {
+                    showToast(result?.message || 'Lỗi khi xóa', 'error');
+                }
             }
-        }
-    });
-    } catch(e) { console.error('DataTable init error:', e); }
+        });
+    }
+    } catch(e) {
+        console.error('DataTable init error:', e);
+        document.getElementById('dathang-table').innerHTML = '<div style="padding:20px;background:#f8d7da;border:1px solid #f5c6cb;border-radius:8px;color:#721c24"><strong>⚠️ DataTable Error:</strong> ' + e.message + '</div>';
+    }
 
     // ==================== BaCang Importer ====================
 
