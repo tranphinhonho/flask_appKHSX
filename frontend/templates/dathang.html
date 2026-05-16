@@ -551,6 +551,8 @@
     kvlBuildTable();
 
     // === ORDER FORM BUILDER (other tabs) ===
+    let rowCounters = { kvl: 0, bacang: 0, silo: 0, forecast: 0 };
+
     const ORDER_TYPES = [
         { id: 'bacang', containerEl: 'order-form-bacang', label: 'Đại lý Bá Cang', loai: 'Đại lý Bá Cang' },
         { id: 'silo', containerEl: 'order-form-silo', label: 'Xe bồn Silo', loai: 'Xe bồn Silo' },
@@ -586,8 +588,6 @@
         // Add first row
         addOrderRow(ot.id);
     });
-
-    let rowCounters = { kvl: 0, bacang: 0, silo: 0, forecast: 0 };
 
     function addOrderRow(type) {
         rowCounters[type]++;
