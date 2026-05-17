@@ -352,7 +352,7 @@ def get_capacity_stats():
     cursor = conn.cursor()
 
     try:
-        cursor.execute("""
+        cursor.execute(db._translate_sql("""
             SELECT [Số máy],
                    COUNT(DISTINCT [Code cám]) as so_loai,
                    AVG([T/h]) as th_tb, MAX([T/h]) as th_max, MIN([T/h]) as th_min,
@@ -360,16 +360,16 @@ def get_capacity_stats():
                    SUM([Số lô]) as tong_lo, MAX([Ngày]) as ngay_cn
             FROM PelletCapacity WHERE [Đã xóa] = 0
             GROUP BY [Số máy] ORDER BY [Số máy]
-        """)
+        """))
         rows = cursor.fetchall()
         cols = [d[0] for d in cursor.description]
         data = [dict(zip(cols, row)) for row in rows]
         conn.close()
 
         return jsonify({'success': True, 'data': data, 'total_machines': len(data)})
-    except:
+    except Exception as e:
         conn.close()
-        return jsonify({'success': True, 'data': [], 'total_machines': 0})
+        return jsonify({'success': True, 'data': [], 'total_machines': 0, 'error': str(e)})
 
 
 @pellet_bp.route('/api/pellet/capacity-detail', methods=['GET'])
@@ -384,23 +384,23 @@ def get_capacity_detail():
 
     try:
         if ngay:
-            cursor.execute("""
+            cursor.execute(db._translate_sql("""
                 SELECT pc.[Số máy], pc.[Code cám], pc.[T/h], pc.[Kwh/T], pc.[Số lô], pc.[Ngày],
                        sp.[Tên cám], sp.[Vật nuôi], sp.[Kích cỡ ép viên], pc.[Thông số khuôn]
                 FROM PelletCapacity pc
                 LEFT JOIN SanPham sp ON (pc.[Code cám] = sp.[Code cám] OR pc.[Code cám] = sp.[Tên cám])
                 WHERE pc.[Ngày] = ? AND pc.[Đã xóa] = 0
                 ORDER BY pc.[Số máy], pc.[T/h] DESC
-            """, (ngay,))
+            """), (ngay,))
         elif so_may:
-            cursor.execute("""
+            cursor.execute(db._translate_sql("""
                 SELECT pc.[Số máy], pc.[Code cám], pc.[T/h], pc.[Kwh/T], pc.[Số lô], pc.[Ngày],
                        sp.[Tên cám], sp.[Vật nuôi], sp.[Kích cỡ ép viên], pc.[Thông số khuôn]
                 FROM PelletCapacity pc
                 LEFT JOIN SanPham sp ON (pc.[Code cám] = sp.[Code cám] OR pc.[Code cám] = sp.[Tên cám])
                 WHERE pc.[Số máy] = ? AND pc.[Đã xóa] = 0
                 ORDER BY pc.[T/h] DESC
-            """, (so_may,))
+            """), (so_may,))
         else:
             conn.close()
             return jsonify({'success': True, 'data': []})
@@ -438,13 +438,13 @@ def get_capacity_dates():
     conn = db.connect_db()
     cursor = conn.cursor()
     try:
-        cursor.execute("SELECT DISTINCT [Ngày] FROM PelletCapacity WHERE [Đã xóa] = 0 ORDER BY [Ngày] DESC")
+        cursor.execute(db._translate_sql("SELECT DISTINCT [Ngày] FROM PelletCapacity WHERE [Đã xóa] = 0 ORDER BY [Ngày] DESC"))
         dates = [r[0] for r in cursor.fetchall()]
         conn.close()
         return jsonify({'success': True, 'dates': dates})
-    except:
+    except Exception as e:
         conn.close()
-        return jsonify({'success': True, 'dates': []})
+        return jsonify({'success': True, 'dates': [], 'error': str(e)})
 
 
 @pellet_bp.route('/api/pellet/upload-capacity', methods=['POST'])
@@ -470,7 +470,8 @@ def upload_capacity():
         result = importer.import_file(
             temp_path,
             nguoi_import=session.get('username', 'system'),
-            overwrite=True
+            overwrite=True,
+            original_filename=file.filename   # <-- truyền tên gốc để parse máy
         )
 
         if result.get('success'):

@@ -26,27 +26,44 @@ def get_latest_date():
     return jsonify({'success': True, 'latest_date': result[0] if result else None})
 
 
-@stockhomnay_bp.route('/api/stockhomnay/days-with-data', methods=['GET'])
+@stockhomnay_bp.route('/api/stockhomnay/days-in-month', methods=['GET'])
 @login_required
-def get_days_with_data():
-    """Lấy danh sách ngày đã có stock trong tháng"""
-    year = request.args.get('year', type=int)
+def get_days_in_month():
+    """Trả về danh sách ngày (1-31) có dữ liệu StockHomNay trong tháng/năm"""
+    year  = request.args.get('year',  type=int)
     month = request.args.get('month', type=int)
     if not year or not month:
         now = get_vietnam_time()
-        year = year or now.year
+        year  = year  or now.year
         month = month or now.month
 
+    month_str = f"{year}-{month:02d}"
     conn = db.connect_db()
     cursor = conn.cursor()
     cursor.execute("""
-        SELECT DISTINCT strftime('%d', [Ngày stock]) as day
-        FROM StockHomNay WHERE [Đã xóa] = 0
-        AND strftime('%Y', [Ngày stock]) = ? AND strftime('%m', [Ngày stock]) = ?
-    """, (str(year), str(month).zfill(2)))
-    days = [int(r[0]) for r in cursor.fetchall()]
+        SELECT DISTINCT CAST([Ngày stock] AS TEXT) as ngay_str
+        FROM StockHomNay
+        WHERE [Đã xóa] = 0
+          AND CAST([Ngày stock] AS TEXT) LIKE ?
+        ORDER BY ngay_str
+    """, (month_str + '%',))
+    rows = cursor.fetchall()
     conn.close()
-    return jsonify({'success': True, 'days': days, 'year': year, 'month': month})
+
+    days_with_data = []
+    for row in rows:
+        date_str = str(row[0]) if row[0] else ''
+        if len(date_str) >= 10:
+            try:
+                day = int(date_str[8:10])
+                if day not in days_with_data:
+                    days_with_data.append(day)
+            except ValueError:
+                pass
+    days_with_data.sort()
+    return jsonify({'success': True, 'days': days_with_data, 'year': year, 'month': month})
+
+
 
 
 @stockhomnay_bp.route('/api/stockhomnay', methods=['GET'])

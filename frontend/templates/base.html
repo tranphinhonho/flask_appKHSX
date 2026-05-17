@@ -46,10 +46,15 @@
         </div>
     </nav>
 
+    <!-- Nút toggle sidebar floating (topbar đã ẩn) -->
+    <button class="btn-toggle-sidebar btn-sidebar-float" onclick="toggleSidebar()" title="Ẩn/Hiện menu">
+        <i class="bi bi-list"></i>
+    </button>
+
     <!-- Main Content -->
     <main id="main-content" class="main-content">
-        <!-- Top bar -->
-        <header class="topbar">
+        <!-- Top bar (ẩn để tiết kiệm không gian) -->
+        <header class="topbar" style="display:none">
             <button class="btn-toggle-sidebar" onclick="toggleSidebar()">
                 <i class="bi bi-list"></i>
             </button>

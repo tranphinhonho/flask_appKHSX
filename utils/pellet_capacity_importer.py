@@ -47,22 +47,36 @@ class PelletCapacityImporter:
         self.db_path = db_path
         self._is_pg = is_postgres(db_path)
         self._ensure_table()
-    
+
     def _get_connection(self):
         return get_db_connection(self.db_path)
-    
+
     def _q(self, name: str) -> str:
         return q(name, self.db_path)
-    
+
     def _ph(self) -> str:
         return ph(self.db_path)
-    
+
+    def _sql(self, sql: str) -> str:
+        """Tự động dịch SQL từ SQLite sang PostgreSQL nếu cần.
+        - Chuyển [tên cột] → "tên cột"  (bracket → double-quote)
+        - Chuyển ? → %s  (placeholder)
+        """
+        if not self._is_pg:
+            return sql
+        import re
+        # Chuyển [tên cột] → "tên cột"
+        sql = re.sub(r'\[([^\]]+)\]', r'"\1"', sql)
+        # Chuyển placeholder ? → %s
+        sql = sql.replace('?', '%s')
+        return sql
+
     def _da_xoa_check(self, val='0') -> str:
         if self._is_pg:
             return f'{self._q("Đã xóa")}::integer = {val}'
         else:
             return f'{self._q("Đã xóa")} = {val}'
-    
+
     def _ensure_table(self):
         """Đảm bảo bảng PelletCapacity tồn tại"""
         conn = self._get_connection()
@@ -205,24 +219,26 @@ class PelletCapacityImporter:
         
         return pd.DataFrame(rows)
     
-    def read_all_sheets(self, file_path: str | Path) -> pd.DataFrame:
+    def read_all_sheets(self, file_path: str | Path, original_filename: str = None) -> pd.DataFrame:
         """
         Đọc dữ liệu từ tất cả 31 sheets (1-31)
         
         Args:
-            file_path: Đường dẫn file Excel
+            file_path: Đường dẫn file Excel (có thể là temp path)
+            original_filename: Tên file gốc (để parse số máy/tháng/năm). Nếu None dùng file_path.name
             
         Returns:
             DataFrame với các cột: Ngày, Số máy, Code cám, T/h, Kwh/T
         """
         file_path = Path(file_path)
-        machine, month, year = self._extract_machine_and_date(file_path.name)
+        parse_name = original_filename or file_path.name
+        machine, month, year = self._extract_machine_and_date(parse_name)
         
         all_data = []
         
         for day in range(1, 32):
             try:
-                df = self.read_sheet(file_path, str(day))
+                df = self.read_sheet(file_path, str(day), machine=machine)
                 
                 if not df.empty:
                     df['Ngày'] = datetime(year, month, day).strftime('%Y-%m-%d')
@@ -244,23 +260,26 @@ class PelletCapacityImporter:
         self, 
         file_path: str | Path,
         overwrite: bool = True,
-        nguoi_import: str = "System"
+        nguoi_import: str = "System",
+        original_filename: str = None
     ) -> Dict:
         """
         Import dữ liệu từ 1 file vào database
         
         Args:
-            file_path: Đường dẫn file Excel
+            file_path: Đường dẫn file Excel (có thể là temp path)
             overwrite: Nếu True, xóa dữ liệu cũ của tháng này trước khi import
             nguoi_import: Tên người import
+            original_filename: Tên file gốc (để parse số máy/tháng năm khi file_path là temp)
             
         Returns:
             Dict với thông tin kết quả
         """
         file_path = Path(file_path)
+        parse_name = original_filename or file_path.name
         
         try:
-            machine, month, year = self._extract_machine_and_date(file_path.name)
+            machine, month, year = self._extract_machine_and_date(parse_name)
         except ValueError as e:
             return {
                 'success': False,
@@ -268,8 +287,8 @@ class PelletCapacityImporter:
                 'imported': 0
             }
         
-        # Đọc dữ liệu
-        df = self.read_all_sheets(file_path)
+        # Đọc dữ liệu (truyền original_filename để read_all_sheets biết tên máy)
+        df = self.read_all_sheets(file_path, original_filename=original_filename)
         
         if df.empty:
             return {
@@ -282,31 +301,35 @@ class PelletCapacityImporter:
         cursor = conn.cursor()
         
         try:
+            _q = self._q
+            _p = self._ph()
+
             # Xóa dữ liệu cũ nếu overwrite
             if overwrite:
-                cursor.execute("""
-                    DELETE FROM PelletCapacity 
-                    WHERE [Số máy] = ? 
-                    AND strftime('%Y-%m', [Ngày]) = ?
-                """, (machine, f"{year:04d}-{month:02d}"))
+                ym_prefix = f"{year:04d}-{month:02d}%"
+                cursor.execute(f"""
+                    DELETE FROM {_q('PelletCapacity')}
+                    WHERE {_q('Số máy')} = {_p}
+                    AND CAST({_q('Ngày')} AS TEXT) LIKE {_p}
+                """, (machine, ym_prefix))
                 deleted = cursor.rowcount
             else:
                 deleted = 0
-            
+
             # Import dữ liệu mới
             imported = 0
             not_found = []
-            
+
             for _, row in df.iterrows():
                 # Tìm ID sản phẩm
                 product_id = self._get_product_id(cursor, row['Code cám'])
-                
-                cursor.execute("""
-                    INSERT INTO PelletCapacity 
-                    ([Ngày], [Số máy], [Code cám], [T/h], [Kwh/T], 
-                     [Thông số khuôn], [ID sản phẩm], [Số lô], [Nguồn file], 
-                     [Thời gian import], [Người import])
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+
+                cursor.execute(f"""
+                    INSERT INTO {_q('PelletCapacity')}
+                    ({_q('Ngày')}, {_q('Số máy')}, {_q('Code cám')}, {_q('T/h')}, {_q('Kwh/T')},
+                     {_q('Thông số khuôn')}, {_q('ID sản phẩm')}, {_q('Số lô')}, {_q('Nguồn file')},
+                     {_q('Thời gian import')}, {_q('Người import')})
+                    VALUES ({_p}, {_p}, {_p}, {_p}, {_p}, {_p}, {_p}, {_p}, {_p}, {_p}, {_p})
                 """, (
                     row['Ngày'],
                     row['Số máy'],
@@ -321,12 +344,12 @@ class PelletCapacityImporter:
                     nguoi_import
                 ))
                 imported += 1
-                
+
                 if not product_id and row['Code cám'] not in not_found:
                     not_found.append(row['Code cám'])
-            
+
             conn.commit()
-            
+
             return {
                 'success': True,
                 'machine': machine,
@@ -336,7 +359,7 @@ class PelletCapacityImporter:
                 'deleted': deleted,
                 'not_found': not_found
             }
-            
+
         except Exception as e:
             conn.rollback()
             return {
@@ -366,21 +389,21 @@ class PelletCapacityImporter:
         cursor = conn.cursor()
         
         if so_may:
-            cursor.execute("""
+            cursor.execute(self._sql("""
                 SELECT [T/h], [Kwh/T], [Ngày], [Số máy]
                 FROM PelletCapacity
                 WHERE [Code cám] = ? AND [Số máy] = ? AND [Đã xóa] = 0
                 ORDER BY [T/h] DESC
                 LIMIT 1
-            """, (code_cam, so_may))
+            """), (code_cam, so_may))
         else:
-            cursor.execute("""
+            cursor.execute(self._sql("""
                 SELECT [T/h], [Kwh/T], [Ngày], [Số máy]
                 FROM PelletCapacity
                 WHERE [Code cám] = ? AND [Đã xóa] = 0
                 ORDER BY [T/h] DESC
                 LIMIT 1
-            """, (code_cam,))
+            """), (code_cam,))
         
         result = cursor.fetchone()
         conn.close()
@@ -399,11 +422,11 @@ class PelletCapacityImporter:
         conn = self._get_connection()
         cursor = conn.cursor()
         
-        cursor.execute("""
+        cursor.execute(self._sql("""
             SELECT AVG([T/h])
             FROM PelletCapacity
             WHERE [Số máy] = ? AND [Đã xóa] = 0
-        """, (so_may,))
+        """), (so_may,))
         
         result = cursor.fetchone()
         conn.close()
@@ -420,24 +443,24 @@ class PelletCapacityImporter:
         conn = self._get_connection()
         
         if ngay:
-            query = """
+            query = self._sql("""
                 SELECT [Số máy], [Code cám], AVG([T/h]) as [Avg T/h], 
                        AVG([Kwh/T]) as [Avg Kwh/T], COUNT(*) as [Số lô]
                 FROM PelletCapacity
                 WHERE [Ngày] = ? AND [Đã xóa] = 0
                 GROUP BY [Số máy], [Code cám]
                 ORDER BY [Số máy], [Code cám]
-            """
+            """)
             df = pd.read_sql_query(query, conn, params=(ngay,))
         else:
-            query = """
+            query = self._sql("""
                 SELECT [Ngày], [Số máy], [Code cám], AVG([T/h]) as [Avg T/h],
                        AVG([Kwh/T]) as [Avg Kwh/T], COUNT(*) as [Số lô]
                 FROM PelletCapacity
                 WHERE [Đã xóa] = 0
                 GROUP BY [Ngày], [Số máy], [Code cám]
                 ORDER BY [Ngày] DESC, [Số máy], [Code cám]
-            """
+            """)
             df = pd.read_sql_query(query, conn)
         
         conn.close()
@@ -452,33 +475,33 @@ class PelletCapacityImporter:
         cursor = conn.cursor()
         
         # Lấy T/h tối ưu cho từng Code cám
-        cursor.execute("""
+        cursor.execute(self._sql("""
             SELECT [Code cám], MAX([T/h]) as [Max T/h]
             FROM PelletCapacity
             WHERE [Đã xóa] = 0
             GROUP BY [Code cám]
-        """)
+        """))
         
         optimal_data = cursor.fetchall()
         updated = 0
         
         for code_cam, max_th in optimal_data:
             # Lấy Kwh/T tương ứng với T/h cao nhất
-            cursor.execute("""
+            cursor.execute(self._sql("""
                 SELECT [Kwh/T] FROM PelletCapacity
                 WHERE [Code cám] = ? AND [T/h] = ? AND [Đã xóa] = 0
                 LIMIT 1
-            """, (code_cam, max_th))
+            """), (code_cam, max_th))
             
             kwh_result = cursor.fetchone()
             kwh_t = kwh_result[0] if kwh_result else None
             
             # Cập nhật SanPham
-            cursor.execute("""
+            cursor.execute(self._sql("""
                 UPDATE SanPham
                 SET [T/h] = ?, [Kwh/T] = ?
                 WHERE ([Code cám] = ? OR [Tên cám] = ?) AND [Đã xóa] = 0
-            """, (max_th, kwh_t, code_cam, code_cam))
+            """), (max_th, kwh_t, code_cam, code_cam))
             
             if cursor.rowcount > 0:
                 updated += 1
@@ -496,14 +519,14 @@ class PelletCapacityImporter:
         """Lấy tất cả dữ liệu PelletCapacity"""
         conn = self._get_connection()
         
-        query = """
+        query = self._sql("""
             SELECT pc.*, sp.[Tên cám] as [Tên sản phẩm]
             FROM PelletCapacity pc
             LEFT JOIN SanPham sp ON pc.[ID sản phẩm] = sp.ID
             WHERE pc.[Đã xóa] = 0
             ORDER BY pc.[Ngày] DESC, pc.[Số máy], pc.[Code cám]
             LIMIT ?
-        """
+        """)
         df = pd.read_sql_query(query, conn, params=(limit,))
         conn.close()
         
@@ -533,7 +556,7 @@ class PelletCapacityImporter:
         cursor = conn.cursor()
         
         # Tìm ngày có T/h cao nhất (dùng MAX thay vì SUM)
-        cursor.execute("""
+        cursor.execute(self._sql("""
             SELECT 
                 [Ngày],
                 MAX([T/h]) as [Max T/h],
@@ -544,7 +567,7 @@ class PelletCapacityImporter:
             GROUP BY [Ngày]
             ORDER BY [Max T/h] DESC
             LIMIT 1
-        """, (code_cam, so_may))
+        """), (code_cam, so_may))
         
         result = cursor.fetchone()
         conn.close()
@@ -613,7 +636,7 @@ class PelletCapacityImporter:
             ORDER BY ds.[Số máy], ds.[Code cám]
         """
         
-        df = pd.read_sql_query(query, conn)
+        df = pd.read_sql_query(self._sql(query), conn)
         conn.close()
         
         return df
@@ -652,7 +675,7 @@ class PelletCapacityImporter:
         """
         
         cursor = conn.cursor()
-        cursor.execute(query, (code_cam,))
+        cursor.execute(self._sql(query), (code_cam,))
         result = cursor.fetchone()
         conn.close()
         
@@ -708,7 +731,7 @@ class PelletCapacityImporter:
             ORDER BY ds.[Max T/h] DESC
         """
         
-        df = pd.read_sql_query(query, conn, params=(code_cam,))
+        df = pd.read_sql_query(self._sql(query), conn, params=(code_cam,))
         conn.close()
         
         return df

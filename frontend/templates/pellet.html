@@ -370,10 +370,19 @@
             return;
         }
 
+        // Helper: ép float (PostgreSQL trả AVG/SUM dạng string)
+        const pf = v => parseFloat(v) || 0;
+        // Helper: format ngày (PostgreSQL có thể trả "Wed, 29 Apr 2026 00:00:00 GMT")
+        const fmtDate = v => {
+            if (!v) return '';
+            const d = new Date(v);
+            return isNaN(d) ? String(v).split('T')[0] : d.toISOString().split('T')[0];
+        };
+
         // Summary
-        const avgTh = result.data.reduce((s, r) => s + (r.th_tb || 0), 0) / result.data.length;
-        const avgKwh = result.data.reduce((s, r) => s + (r.kwh_tb || 0), 0) / result.data.length;
-        const totalLo = result.data.reduce((s, r) => s + (r.tong_lo || 0), 0);
+        const avgTh  = result.data.reduce((s, r) => s + pf(r.th_tb),  0) / result.data.length;
+        const avgKwh = result.data.reduce((s, r) => s + pf(r.kwh_tb), 0) / result.data.length;
+        const totalLo = result.data.reduce((s, r) => s + pf(r.tong_lo), 0);
 
         let html = `<div style="display:flex;gap:12px;margin-bottom:16px">
             <div style="flex:1;padding:10px;background:#e8f5e9;border-radius:6px;text-align:center">
@@ -390,7 +399,7 @@
             </div>
             <div style="flex:1;padding:10px;background:#fce4ec;border-radius:6px;text-align:center">
                 <div class="text-muted" style="font-size:11px">Tổng lô SX</div>
-                <div style="font-weight:bold">${totalLo.toLocaleString()}</div>
+                <div style="font-weight:bold">${Math.round(totalLo).toLocaleString()}</div>
             </div>
         </div>`;
 
@@ -402,13 +411,14 @@
             html += `<tr>
                 <td><strong>${r['Số máy']}</strong></td>
                 <td>${r.so_loai}</td>
-                <td>${(r.th_tb || 0).toFixed(2)}</td><td>${(r.th_max || 0).toFixed(2)}</td><td>${(r.th_min || 0).toFixed(2)}</td>
-                <td>${(r.kwh_tb || 0).toFixed(2)}</td><td>${(r.tong_lo || 0).toLocaleString()}</td>
-                <td style="font-size:10px">${r.ngay_cn || ''}</td>
+                <td>${pf(r.th_tb).toFixed(2)}</td><td>${pf(r.th_max).toFixed(2)}</td><td>${pf(r.th_min).toFixed(2)}</td>
+                <td>${pf(r.kwh_tb).toFixed(2)}</td><td>${Math.round(pf(r.tong_lo)).toLocaleString()}</td>
+                <td style="font-size:10px">${fmtDate(r.ngay_cn)}</td>
             </tr>`;
         });
         html += '</tbody></table>';
         container.innerHTML = html;
+        loadCapDetail();  // auto-load detail sau khi stats hiện
 
         // Load dates for date selector
         const dates = await api.get('/api/pellet/capacity-dates');
@@ -425,6 +435,10 @@
         loadCapDetail();
     }
 
+    let _capDetailData = [];    // lưu data để sort/group không cần gọi API lại
+    let _capSort = { col: 'T/h', dir: -1 };  // mặc định: T/h giảm dần
+    let _capGrouped = false;    // toggle group by Code cám
+
     async function loadCapDetail() {
         const mode = document.getElementById('cap-mode').value;
         let url = '/api/pellet/capacity-detail?';
@@ -439,19 +453,174 @@
             return;
         }
 
-        let html = '<table class="data-table" style="font-size:11px"><thead><tr>';
+        _capDetailData = result.data;
+        renderCapDetail();
+    }
+
+    function sortCapDetail(col) {
+        if (_capSort.col === col) {
+            _capSort.dir *= -1;
+        } else {
+            _capSort.col = col;
+            _capSort.dir = -1;
+        }
+        renderCapDetail();
+    }
+
+    function toggleGroupCode() {
+        _capGrouped = !_capGrouped;
+        // Reset sort về T/h khi toggle group
+        _capSort = { col: 'T/h', dir: -1 };
+        renderCapDetail();
+    }
+
+    function renderCapDetail() {
+        const mode = document.getElementById('cap-mode').value;
+        const container = document.getElementById('cap-detail');
+        if (!_capDetailData.length) return;
+
+        const fmtDate = v => {
+            if (!v) return '';
+            const d = new Date(v);
+            return isNaN(d) ? String(v).split('T')[0] : d.toISOString().split('T')[0];
+        };
+
+        if (_capGrouped) {
+            renderGrouped(mode, container, fmtDate);
+        } else {
+            renderFlat(mode, container, fmtDate);
+        }
+    }
+
+    function renderGrouped(mode, container, fmtDate) {
+        // Gom nhóm theo Code cám
+        const groups = {};
+        _capDetailData.forEach(r => {
+            const code = r['Code cám'] || '(trống)';
+            if (!groups[code]) {
+                groups[code] = {
+                    code,
+                    ten_cam: r['Tên cám'] || r['ten_cam'] || '',
+                    vat_nuoi: r['Vật nuôi'] || '',
+                    so_may_list: new Set(),
+                    ngay_set: new Set(),
+                    th_list: [],
+                    kwh_list: [],
+                    so_lo: 0
+                };
+            }
+            const g = groups[code];
+            const th = parseFloat(r['T/h']);
+            const kwh = parseFloat(r['Kwh/T']);
+            if (!isNaN(th)) g.th_list.push(th);
+            if (!isNaN(kwh)) g.kwh_list.push(kwh);
+            g.so_lo += parseInt(r['Số lô']) || 1;
+            if (r['Số máy']) g.so_may_list.add(r['Số máy']);
+            const ngay = fmtDate(r['Ngày']);
+            if (ngay) g.ngay_set.add(ngay);
+        });
+
+        // Tính aggregate & sort
+        let rows = Object.values(groups).map(g => ({
+            ...g,
+            th_max: g.th_list.length ? Math.max(...g.th_list) : 0,
+            th_tb: g.th_list.length ? g.th_list.reduce((a, b) => a + b, 0) / g.th_list.length : 0,
+            kwh_tb: g.kwh_list.length ? g.kwh_list.reduce((a, b) => a + b, 0) / g.kwh_list.length : 0,
+            so_ngay: g.ngay_set.size,
+            so_may_str: [...g.so_may_list].sort().join(', ')
+        }));
+
+        const sortCol = _capSort.col;
+        const sortDir = _capSort.dir;
+        const sortKey = sortCol === 'T/h' ? 'th_max' : sortCol === 'Kwh/T' ? 'kwh_tb' : null;
+        if (sortKey) rows.sort((a, b) => (a[sortKey] - b[sortKey]) * sortDir);
+
+        const SORTABLE = ['T/h', 'Kwh/T'];
+        const colLabels = mode === 'date'
+            ? [['Code cám', null], ['T/h Max', 'T/h'], ['T/h TB', null], ['Kwh/T TB', 'Kwh/T'], ['Tổng lô', null], ['Số ngày', null], ['Máy', null], ['Tên cám', null], ['Vật nuôi', null]]
+            : [['Code cám', null], ['T/h Max', 'T/h'], ['T/h TB', null], ['Kwh/T TB', 'Kwh/T'], ['Tổng lô', null], ['Số ngày', null], ['Tên cám', null]];
+
+        let html = `<div style="font-size:11px;color:#6c757d;margin-bottom:6px">
+            📦 Đang xem theo nhóm Code cám — ${rows.length} loại cám / ${_capDetailData.length} dòng
+        </div>`;
+        html += '<table class="data-table" style="font-size:11px"><thead><tr>';
+
+        colLabels.forEach(([label, sortKey2]) => {
+            if (label === 'Code cám') {
+                html += `<th style="cursor:pointer;background:#0d9488;color:#fff;user-select:none" onclick="toggleGroupCode()" title="Click để bỏ nhóm">Code cám <span style="font-size:9px">📦▲</span></th>`;
+            } else if (sortKey2 && SORTABLE.includes(sortKey2)) {
+                const isActive = sortCol === sortKey2;
+                const icon = isActive ? (sortDir === -1 ? ' ▼' : ' ▲') : ' ⇅';
+                const style = isActive
+                    ? 'cursor:pointer;background:#1a56db;color:#fff;user-select:none'
+                    : 'cursor:pointer;user-select:none;opacity:0.85';
+                html += `<th style="${style}" onclick="sortCapDetail('${sortKey2}')">${label}<span style="font-size:9px">${icon}</span></th>`;
+            } else {
+                html += `<th>${label}</th>`;
+            }
+        });
+        html += '</tr></thead><tbody>';
+
+        rows.forEach(g => {
+            html += `<tr>
+                <td><strong>${g.code}</strong></td>
+                <td style="font-weight:bold;color:#1a56db">${g.th_max.toFixed(2)}</td>
+                <td>${g.th_tb.toFixed(2)}</td>
+                <td>${g.kwh_tb.toFixed(2)}</td>
+                <td>${g.so_lo.toLocaleString()}</td>
+                <td>${g.so_ngay} ngày</td>
+                ${mode === 'date' ? `<td style="font-size:10px">${g.so_may_str}</td>` : ''}
+                <td style="font-size:10px">${g.ten_cam}</td>
+                ${mode === 'date' ? `<td style="font-size:10px">${g.vat_nuoi}</td>` : ''}
+            </tr>`;
+        });
+        html += '</tbody></table>';
+        container.innerHTML = html;
+    }
+
+    function renderFlat(mode, container, fmtDate) {
+        const sortCol = _capSort.col;
+        const sortDir = _capSort.dir;
+        const sorted = [..._capDetailData].sort((a, b) => {
+            const va = parseFloat(a[sortCol]) || 0;
+            const vb = parseFloat(b[sortCol]) || 0;
+            return (va - vb) * sortDir;
+        });
+
         const cols = mode === 'date'
             ? ['Số máy', 'Code cám', 'T/h', 'Kwh/T', 'Số lô', 'Tên cám', 'Vật nuôi', 'Đánh giá']
             : ['Code cám', 'T/h', 'Kwh/T', 'Số lô', 'Ngày', 'Tên cám', 'Đánh giá'];
-        cols.forEach(c => html += `<th>${c}</th>`);
+
+        const SORTABLE = ['T/h', 'Kwh/T'];
+
+        let html = '<table class="data-table" style="font-size:11px"><thead><tr>';
+        cols.forEach(c => {
+            if (c === 'Code cám') {
+                html += `<th style="cursor:pointer;user-select:none;opacity:0.85" onclick="toggleGroupCode()" title="Click để gom nhóm theo Code cám">Code cám <span style="font-size:9px">📦⇅</span></th>`;
+            } else if (SORTABLE.includes(c)) {
+                const isActive = sortCol === c;
+                const icon = isActive ? (sortDir === -1 ? ' ▼' : ' ▲') : ' ⇅';
+                const style = isActive
+                    ? 'cursor:pointer;background:#1a56db;color:#fff;user-select:none'
+                    : 'cursor:pointer;user-select:none;opacity:0.85';
+                html += `<th style="${style}" onclick="sortCapDetail('${c}')">${c}<span style="font-size:9px">${icon}</span></th>`;
+            } else {
+                html += `<th>${c}</th>`;
+            }
+        });
         html += '</tr></thead><tbody>';
 
-        result.data.forEach(r => {
+        sorted.forEach(r => {
             const bg = r.danh_gia?.includes('🔴') ? 'background:#fff3cd' : '';
             html += `<tr style="${bg}">`;
             cols.forEach(c => {
                 let v = r[c === 'Đánh giá' ? 'danh_gia' : c];
-                if (['T/h', 'Kwh/T'].includes(c) && typeof v === 'number') v = v.toFixed(2);
+                if (['T/h', 'Kwh/T'].includes(c)) {
+                    v = parseFloat(v);
+                    v = isNaN(v) ? '' : v.toFixed(2);
+                } else if (c === 'Ngày') {
+                    if (v) { const d = new Date(v); v = isNaN(d) ? String(v).split('T')[0] : d.toISOString().split('T')[0]; }
+                }
                 html += `<td>${v ?? ''}</td>`;
             });
             html += '</tr>';

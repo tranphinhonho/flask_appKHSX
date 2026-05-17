@@ -25,6 +25,46 @@ def get_latest_date():
     return jsonify({'success': True, 'latest_date': result[0] if result else None})
 
 
+@stockold_bp.route('/api/stockold/days-in-month', methods=['GET'])
+@login_required
+def get_days_in_month():
+    """Trả về danh sách ngày (1-31) có dữ liệu trong tháng/năm cho trước"""
+    year  = request.args.get('year',  type=int)
+    month = request.args.get('month', type=int)
+    if not year or not month:
+        return jsonify({'success': False, 'message': 'Thiếu year/month'}), 400
+
+    month_str = f"{year}-{month:02d}"
+    conn = db.connect_db()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT DISTINCT CAST([Ngày stock old] AS TEXT) as ngay_str
+        FROM StockOld
+        WHERE [Đã xóa] = 0
+          AND CAST([Ngày stock old] AS TEXT) LIKE ?
+        ORDER BY ngay_str
+    """, (month_str + '%',))
+    rows = cursor.fetchall()
+    conn.close()
+
+    # Lấy số ngày từ chuỗi 'YYYY-MM-DD'
+    days_with_data = []
+    for row in rows:
+        date_str = str(row[0]) if row[0] else ''
+        if len(date_str) >= 10:
+            try:
+                day = int(date_str[8:10])
+                if day not in days_with_data:
+                    days_with_data.append(day)
+            except ValueError:
+                pass
+    days_with_data.sort()
+    return jsonify({'success': True, 'days': days_with_data, 'year': year, 'month': month})
+
+
+
+
+
 @stockold_bp.route('/api/stockold/chart', methods=['GET'])
 @login_required
 def get_chart_data():

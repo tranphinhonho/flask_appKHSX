@@ -313,6 +313,28 @@ body {
     padding: 20px;
 }
 
+/* Nút toggle sidebar floating (khi topbar bị ẩn) */
+.btn-sidebar-float {
+    position: fixed;
+    top: 8px;
+    left: calc(var(--sidebar-width) + 8px);
+    z-index: 900;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    box-shadow: var(--shadow-sm);
+    transition: var(--transition);
+}
+
+.btn-sidebar-float:hover {
+    background: var(--bg-body);
+    box-shadow: var(--shadow-md);
+}
+
+.sidebar.collapsed ~ .btn-sidebar-float {
+    left: 8px;
+}
+
 /* =====================================================
    LOGIN PAGE
    ===================================================== */

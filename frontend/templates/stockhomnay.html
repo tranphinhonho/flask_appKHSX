@@ -67,27 +67,26 @@
 <!-- Tab 3: List -->
 <div class="tab-content" id="tab-list">
     <div class="form-section">
-        <!-- Calendar -->
-        <div class="form-row" style="margin-bottom:8px;align-items:flex-end">
-            <div class="form-field" style="flex:1">
-                <label>Tháng</label>
-                <select id="cal-month" onchange="loadCalendar()"></select>
+        <!-- Lưới 31 ngày -->
+        <div style="margin-bottom:14px">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+                <button class="btn btn-secondary btn-sm" onclick="shiftMonth(-1)">‹</button>
+                <span id="month-label" style="font-weight:600;font-size:14px;min-width:110px;text-align:center"></span>
+                <button class="btn btn-secondary btn-sm" onclick="shiftMonth(1)">›</button>
+                <button class="btn btn-secondary btn-sm" onclick="goToday()" style="margin-left:6px">📍 Hôm nay</button>
+                <span style="margin-left:8px;font-size:12px;color:#888">
+                    <span style="display:inline-block;width:12px;height:12px;background:var(--accent);border-radius:3px;vertical-align:middle;margin-right:3px"></span>Có dữ liệu
+                    <span style="display:inline-block;width:12px;height:12px;background:#e9ecef;border-radius:3px;vertical-align:middle;margin-left:8px;margin-right:3px"></span>Không có
+                </span>
             </div>
-            <div class="form-field" style="flex:1">
-                <label>Năm</label>
-                <select id="cal-year" onchange="loadCalendar()"></select>
-            </div>
-            <div class="form-field">
-                <button class="btn btn-secondary btn-sm" onclick="goToday()">📍 Hôm nay</button>
-            </div>
+            <div id="day-grid" style="display:flex;flex-wrap:wrap;gap:5px"></div>
         </div>
-        <div id="calendar-grid" style="margin-bottom:12px"></div>
 
         <!-- Vật nuôi filter -->
         <div id="vatnuoi-buttons" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px"></div>
 
         <div id="stock-table">
-            <p class="text-muted">Chọn ngày trên lịch để xem</p>
+            <p class="text-muted">Chọn ngày trên lưới để xem</p>
         </div>
     </div>
 </div>
@@ -108,7 +107,7 @@
         document.querySelectorAll('.tab-nav .tab-btn').forEach(b => b.classList.remove('active'));
         document.getElementById(id).classList.add('active');
         e.currentTarget.classList.add('active');
-        if (id === 'tab-list') loadCalendar();
+        if (id === 'tab-list') { if (!_curYear) goToday(); else loadDayGrid(); }
     }
 
     async function initPage() {
@@ -122,12 +121,6 @@
         document.getElementById('calc-pk').value = d1.toISOString().split('T')[0];
         document.getElementById('calc-sl').value = d1.toISOString().split('T')[0];
         updateFormula();
-
-        // Calendar selectors
-        const mSel = document.getElementById('cal-month');
-        for (let m = 1; m <= 12; m++) mSel.innerHTML += `<option value="${m}" ${m === today.getMonth() + 1 ? 'selected' : ''}>Tháng ${m}</option>`;
-        const ySel = document.getElementById('cal-year');
-        for (let y = 2024; y <= today.getFullYear(); y++) ySel.innerHTML += `<option value="${y}" ${y === today.getFullYear() ? 'selected' : ''}>${y}</option>`;
 
         const prods = await api.get('/api/sanpham/lookup');
         if (prods?.data) _products = prods.data;
@@ -262,43 +255,66 @@
         if (r?.success) showToast(r.message, 'success');
     }
 
-    // ==================== Calendar + List ====================
-    async function loadCalendar() {
-        const m = parseInt(document.getElementById('cal-month').value);
-        const y = parseInt(document.getElementById('cal-year').value);
+    // ==================== Day Grid ====================
+    let _curYear, _curMonth;
 
-        const r = await api.get(`/api/stockhomnay/days-with-data?year=${y}&month=${m}`);
-        _daysWithData = r?.days || [];
-
-        const daysInMonth = new Date(y, m, 0).getDate();
-        let html = '<div style="display:flex;flex-wrap:wrap;gap:4px">';
-        for (let d = 1; d <= daysInMonth; d++) {
-            const has = _daysWithData.includes(d);
-            const sel = _selectedDay === d;
-            const bg = sel ? '#1976d2' : (has ? '#4CAF50' : '#e0e0e0');
-            const color = (sel || has) ? '#fff' : '#333';
-            html += `<button onclick="selectDay(${d})" style="width:32px;height:32px;border:none;border-radius:4px;
-                background:${bg};color:${color};cursor:pointer;font-size:12px;font-weight:${sel ? 'bold' : 'normal'}">${d}</button>`;
-        }
-        html += '</div><div style="font-size:11px;margin-top:4px" class="text-muted">🟢 Đã có | ⬜ Chưa có | 🔵 Đang chọn</div>';
-        document.getElementById('calendar-grid').innerHTML = html;
+    function shiftMonth(delta) {
+        _curMonth += delta;
+        if (_curMonth > 12) { _curMonth = 1; _curYear++; }
+        if (_curMonth < 1)  { _curMonth = 12; _curYear--; }
+        loadDayGrid();
     }
 
+    async function loadDayGrid() {
+        const res = await api.get(`/api/stockhomnay/days-in-month?year=${_curYear}&month=${_curMonth}`);
+        _daysWithData = res?.days || [];
+        const months = ['Tháng 1','Tháng 2','Tháng 3','Tháng 4','Tháng 5','Tháng 6',
+                        'Tháng 7','Tháng 8','Tháng 9','Tháng 10','Tháng 11','Tháng 12'];
+        document.getElementById('month-label').textContent = `${months[_curMonth-1]} / ${_curYear}`;
+        const daysInMonth = new Date(_curYear, _curMonth, 0).getDate();
+        const selDay = (_selectedDay && _selectedYear === _curYear && _selectedMonth === _curMonth) ? _selectedDay : -1;
+        let html = '';
+        for (let d = 1; d <= 31; d++) {
+            const hasData    = d <= daysInMonth && _daysWithData.includes(d);
+            const noDay      = d > daysInMonth;
+            const isSelected = (d === selDay);
+            const dayStr     = `${_curYear}-${String(_curMonth).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+            let bg, color, border, cursor;
+            if (noDay)           { bg='transparent'; color='#ddd'; border='1px dashed #e0e0e0'; cursor='default'; }
+            else if (isSelected) { bg='var(--primary)'; color='#fff'; border='2px solid var(--primary-hover)'; cursor='pointer'; }
+            else if (hasData)    { bg='var(--accent)'; color='#fff'; border='2px solid transparent'; cursor='pointer'; }
+            else                 { bg='#f0f2f6'; color='#aaa'; border='1px solid #e0e0e0'; cursor='pointer'; }
+            const click = noDay ? '' : `onclick="selectDay(${d})" `;
+            html += `<div ${click}title="${noDay?'':dayStr}"
+                style="width:34px;height:34px;display:flex;align-items:center;justify-content:center;
+                       border-radius:6px;font-size:12px;font-weight:${hasData||isSelected?'700':'400'};
+                       background:${bg};color:${color};border:${border};cursor:${cursor};
+                       transition:all .15s;user-select:none;"
+                onmouseenter="if(this.dataset.noday!='1')this.style.opacity='.8'"
+                onmouseleave="this.style.opacity='1'"
+                data-noday="${noDay?'1':'0'}">${noDay?'':d}</div>`;
+        }
+        document.getElementById('day-grid').innerHTML = html;
+    }
+
+    let _selectedYear, _selectedMonth;
+
     function selectDay(d) {
-        const m = parseInt(document.getElementById('cal-month').value);
-        const y = parseInt(document.getElementById('cal-year').value);
-        _selectedDay = (_selectedDay === d) ? null : d;
-        loadCalendar();
+        if (_selectedDay === d && _selectedYear === _curYear && _selectedMonth === _curMonth) {
+            _selectedDay = null;
+        } else {
+            _selectedDay = d; _selectedYear = _curYear; _selectedMonth = _curMonth;
+        }
+        loadDayGrid();
         if (_selectedDay) loadStockList();
         else document.getElementById('stock-table').innerHTML = '<p class="text-muted">Chọn ngày để xem</p>';
     }
 
     function goToday() {
         const t = new Date();
-        document.getElementById('cal-month').value = t.getMonth() + 1;
-        document.getElementById('cal-year').value = t.getFullYear();
-        _selectedDay = t.getDate();
-        loadCalendar();
+        _curYear = t.getFullYear(); _curMonth = t.getMonth() + 1;
+        _selectedDay = t.getDate(); _selectedYear = _curYear; _selectedMonth = _curMonth;
+        loadDayGrid();
         loadStockList();
     }
 
@@ -317,10 +333,8 @@
     function filterVN(code) { _selectedVN = code; buildVNButtons(); if (_selectedDay) loadStockList(); }
 
     async function loadStockList() {
-        if (!_selectedDay) return;
-        const m = parseInt(document.getElementById('cal-month').value);
-        const y = parseInt(document.getElementById('cal-year').value);
-        const ngay = `${y}-${String(m).padStart(2, '0')}-${String(_selectedDay).padStart(2, '0')}`;
+        if (!_selectedDay || !_selectedYear) return;
+        const ngay = `${_selectedYear}-${String(_selectedMonth).padStart(2,'0')}-${String(_selectedDay).padStart(2,'0')}`;
 
         let params = `?ngay=${ngay}&per_page=300`;
         if (_selectedVN !== 'Tất cả') params += `&vatnuoi=${_selectedVN}`;
@@ -364,9 +378,13 @@
     async function deleteItem(id) {
         if (!confirm('Xóa?')) return;
         const r = await api.post('/api/stockhomnay/delete', { id });
-        if (r?.success) { showToast('Đã xóa', 'success'); loadStockList(); loadCalendar(); }
+        if (r?.success) { showToast('Đã xóa', 'success'); loadStockList(); loadDayGrid(); }
     }
 
     initPage();
+    // Khởi tạo day grid khi vào tab-list
+    const _today = new Date();
+    _curYear = _today.getFullYear(); _curMonth = _today.getMonth() + 1;
+    _selectedDay = null;
 </script>
 {% endblock %}

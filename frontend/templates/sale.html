@@ -92,10 +92,24 @@
     <div class="form-section">
         <div id="sl-stats" style="margin-bottom:12px"></div>
 
+        <!-- Lưới 31 ngày -->
+        <div style="margin-bottom:14px">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+                <button class="btn btn-secondary btn-sm" onclick="shiftMonth(-1)">‹</button>
+                <span id="month-label" style="font-weight:600;font-size:14px;min-width:110px;text-align:center"></span>
+                <button class="btn btn-secondary btn-sm" onclick="shiftMonth(1)">›</button>
+                <span style="margin-left:8px;font-size:12px;color:#888">
+                    <span style="display:inline-block;width:12px;height:12px;background:var(--accent);border-radius:3px;vertical-align:middle;margin-right:3px"></span>Có dữ liệu
+                    <span style="display:inline-block;width:12px;height:12px;background:#e9ecef;border-radius:3px;vertical-align:middle;margin-left:8px;margin-right:3px"></span>Không có dữ liệu
+                </span>
+            </div>
+            <div id="day-grid" style="display:flex;flex-wrap:wrap;gap:5px"></div>
+        </div>
+
         <div class="form-row" style="margin-bottom:12px;align-items:flex-end">
             <div class="form-field" style="flex:1">
-                <label>📅 Ngày</label>
-                <input type="date" id="filter-ngay" onchange="loadSLList();loadStats()">
+                <label>📅 Ngày đang xem</label>
+                <input type="date" id="filter-ngay" onchange="onManualDateChange()">
             </div>
             <div class="form-field" style="flex:2">
                 <label>🐾 Vật nuôi</label>
@@ -124,17 +138,79 @@
         document.querySelectorAll('.tab-nav .tab-btn').forEach(b => b.classList.remove('active'));
         document.getElementById(tabId).classList.add('active');
         e.currentTarget.classList.add('active');
-        if (tabId === 'tab-list') { loadSLList(); loadStats(); }
+        if (tabId === 'tab-list') { loadDayGrid(); loadSLList(); loadStats(); }
+    }
+
+    // ==================== Tháng & lưới ngày ====================
+    let _curYear, _curMonth;
+    let _daysWithData = [];
+
+    function shiftMonth(delta) {
+        _curMonth += delta;
+        if (_curMonth > 12) { _curMonth = 1; _curYear++; }
+        if (_curMonth < 1)  { _curMonth = 12; _curYear--; }
+        loadDayGrid();
+    }
+
+    async function loadDayGrid() {
+        const res = await api.get(`/api/sale/days-in-month?year=${_curYear}&month=${_curMonth}`);
+        _daysWithData = res?.days || [];
+        const months = ['Tháng 1','Tháng 2','Tháng 3','Tháng 4','Tháng 5','Tháng 6',
+                        'Tháng 7','Tháng 8','Tháng 9','Tháng 10','Tháng 11','Tháng 12'];
+        document.getElementById('month-label').textContent = `${months[_curMonth-1]} / ${_curYear}`;
+        const daysInMonth = new Date(_curYear, _curMonth, 0).getDate();
+        const selectedDate = document.getElementById('filter-ngay').value;
+        const selDay = selectedDate ? parseInt(selectedDate.split('-')[2]) : -1;
+        const selYM  = selectedDate ? selectedDate.substring(0,7) : '';
+        const gridYM = `${_curYear}-${String(_curMonth).padStart(2,'0')}`;
+        let html = '';
+        for (let d = 1; d <= 31; d++) {
+            const hasData    = d <= daysInMonth && _daysWithData.includes(d);
+            const noDay      = d > daysInMonth;
+            const isSelected = (d === selDay && gridYM === selYM);
+            const dayStr     = `${_curYear}-${String(_curMonth).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+            let bg, color, border, cursor;
+            if (noDay)           { bg='transparent'; color='#ddd'; border='1px dashed #e0e0e0'; cursor='default'; }
+            else if (isSelected) { bg='var(--primary)'; color='#fff'; border='2px solid var(--primary-hover)'; cursor='pointer'; }
+            else if (hasData)    { bg='var(--accent)'; color='#fff'; border='2px solid transparent'; cursor='pointer'; }
+            else                 { bg='#f0f2f6'; color='#aaa'; border='1px solid #e0e0e0'; cursor='pointer'; }
+            const click = noDay ? '' : `onclick="selectDay('${dayStr}')"`;
+            html += `<div ${click} title="${noDay?'':dayStr}"
+                style="width:34px;height:34px;display:flex;align-items:center;justify-content:center;
+                       border-radius:6px;font-size:12px;font-weight:${hasData||isSelected?'700':'400'};
+                       background:${bg};color:${color};border:${border};cursor:${cursor};
+                       transition:all .15s;user-select:none;"
+                onmouseenter="if(this.dataset.noday!='1')this.style.opacity='.8'"
+                onmouseleave="this.style.opacity='1'"
+                data-noday="${noDay?'1':'0'}">${noDay?'':d}</div>`;
+        }
+        document.getElementById('day-grid').innerHTML = html;
+    }
+
+    function selectDay(dateStr) {
+        document.getElementById('filter-ngay').value = dateStr;
+        loadDayGrid();
+        loadSLList();
+        loadStats();
+    }
+
+    function onManualDateChange() {
+        const d = document.getElementById('filter-ngay').value;
+        if (!d) return;
+        const [y, m] = d.split('-').map(Number);
+        _curYear = y; _curMonth = m;
+        loadDayGrid(); loadSLList(); loadStats();
     }
 
     async function initPage() {
         const latest = await api.get('/api/sale/latest-date');
         const date = latest?.latest_date || new Date().toISOString().split('T')[0];
         document.getElementById('filter-ngay').value = date;
+        const [y, m] = date.split('-').map(Number);
+        _curYear = y; _curMonth = m;
 
         const prods = await api.get('/api/sanpham/lookup');
         if (prods?.data) _products = prods.data;
-
         buildVNButtons();
         addSLRow();
     }
