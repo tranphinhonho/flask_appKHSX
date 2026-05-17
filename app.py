@@ -31,6 +31,7 @@ from backend.api.plan_routes import plan_bp
 from backend.api.stockhomnay_routes import stockhomnay_bp
 from backend.api.lichthang_routes import lichthang_bp
 from backend.api.admin_routes import admin_bp
+from backend.api.ghichu_routes import ghichu_bp
 
 
 def create_app():
@@ -50,6 +51,13 @@ def create_app():
 
     # Init database
     db.init_db(config.DATABASE_PATH)
+
+    # Ensure GhiChu table exists
+    try:
+        from backend.api.ghichu_routes import _ensure_table
+        _ensure_table()
+    except Exception:
+        pass
 
     # Fix NULL 'Đã xóa' values (PostgreSQL tables may lack DEFAULT 0)
     try:
@@ -93,6 +101,7 @@ def create_app():
     app.register_blueprint(stockhomnay_bp)
     app.register_blueprint(lichthang_bp)
     app.register_blueprint(admin_bp)
+    app.register_blueprint(ghichu_bp)
 
     # ========== Health Check (for cron-job.org keep-alive) ==========
 
@@ -216,6 +225,13 @@ def create_app():
     @login_required
     def page_lichthang():
         return render_template('lichthang.html',
+                               username=session.get('username'),
+                               fullname=session.get('fullname'))
+
+    @app.route('/page/ghichu')
+    @login_required
+    def page_ghichu():
+        return render_template('ghichu.html',
                                username=session.get('username'),
                                fullname=session.get('fullname'))
 

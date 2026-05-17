@@ -36,7 +36,7 @@ def _translate_sql(sql):
         'EmailImportLog', 'MasterdataLoss', 'PackingPlan', 'BagStock',
         'BaoBi', 'Packing', 'Pellet', 'PelletCapacity', 'Plan', 'Sale',
         'TestCan_Reports', 'Testcan', 'Mixer', 'Forecast',
-        'PelletPlan', 'Batching',
+        'PelletPlan', 'Batching', 'GhiChu',
         'tbsys_ChucNangChinh', 'tbsys_ChucNangTheoVaiTro',
         'tbsys_DanhSachChucNang', 'tbsys_LichSuBackupDatabase',
         'tbsys_Logs', 'tbsys_ModuleChucNang', 'tbsys_Users',

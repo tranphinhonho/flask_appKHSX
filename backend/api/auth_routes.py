@@ -60,6 +60,15 @@ def get_menu():
     username = session.get('username')
     menu = get_user_menu(username)
 
+    # Thêm mục Ghi chú riêng cho tất cả user
+    menu.append({
+        'name': 'Ghi chú',
+        'icon': 'journal-text',
+        'sub_functions': [
+            {'name': 'Ghi chú', 'module_path': 'PagesKDE.GhiChu'}
+        ]
+    })
+
     # Thêm Admin KDE cho admin users
     if username in ['phinho', 'kde', 'admin']:
         menu.append({

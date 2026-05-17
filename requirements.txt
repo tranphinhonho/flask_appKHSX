@@ -15,6 +15,9 @@ bcrypt
 # Images
 Pillow
 
+# Cloud Storage
+supabase
+
 # Utilities
 pytz
 

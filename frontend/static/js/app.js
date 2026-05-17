@@ -155,12 +155,14 @@ function navigateToModule(name, modulePath, clickedEl) {
         'PagesKDE.Plan': '/page/plan',
         'PagesKDE.StockHomNay': '/page/stockhomnay',
         'PagesKDE.LichThang': '/page/lichthang',
+        'PagesKDE.GhiChu': '/page/ghichu',
         // Admin pages
         'Admin.TaoBang': '/admin/tables',
         'Admin.Users': '/admin/users',
         'Admin.VaiTro': '/admin/roles',
         'Admin.Settings': '/admin/settings',
     };
+
 
     if (modulePath && moduleToPage[modulePath]) {
         window.location.href = moduleToPage[modulePath];

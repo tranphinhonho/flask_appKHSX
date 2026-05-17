@@ -1,0 +1,390 @@
+﻿{% extends 'base.html' %}
+{% block title %}Ghi chú{% endblock %}
+{% block head %}
+<style>
+.gc-layout{display:grid;grid-template-columns:360px 1fr;gap:16px;align-items:start}
+.gc-form-card{background:#fff;border-radius:12px;padding:20px;box-shadow:0 2px 12px rgba(0,0,0,.08);position:sticky;top:16px}
+.gc-form-card h4{margin:0 0 16px;font-size:15px;font-weight:700;color:#1e3a5f;display:flex;align-items:center;gap:8px}
+.gc-field{margin-bottom:12px}
+.gc-field label{display:block;font-size:12px;font-weight:600;color:#555;margin-bottom:4px}
+.gc-field input,.gc-field select,.gc-field textarea{width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:8px;font-size:13px;font-family:inherit;box-sizing:border-box}
+.gc-field textarea{resize:vertical;min-height:80px}
+.gc-field input:focus,.gc-field select:focus,.gc-field textarea:focus{outline:none;border-color:#4a90d9}
+.upload-zone{border:2px dashed #c0c8d8;border-radius:8px;padding:16px;text-align:center;cursor:pointer;transition:.2s}
+.upload-zone:hover{border-color:#4a90d9;background:#f0f6ff}
+.upload-zone input{display:none}
+.img-preview-list{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.img-preview-item{position:relative;width:64px;height:64px}
+.img-preview-item img{width:100%;height:100%;object-fit:cover;border-radius:6px;border:1px solid #ddd}
+.img-preview-item .rm-img{position:absolute;top:-4px;right:-4px;background:#e74c3c;color:#fff;border:none;border-radius:50%;width:16px;height:16px;font-size:10px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.gc-filter-bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;background:#fff;border-radius:12px;padding:12px 16px;box-shadow:0 2px 8px rgba(0,0,0,.06);margin-bottom:12px}
+.gc-filter-bar select,.gc-filter-bar input[type=text],.gc-filter-bar input[type=date]{padding:6px 10px;border:1px solid #ddd;border-radius:8px;font-size:13px;font-family:inherit}
+.gc-filter-bar .btn-export{margin-left:auto;padding:6px 14px;background:#1e7e34;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;display:flex;align-items:center;gap:6px}
+.gc-filter-bar .btn-export:hover{background:#155724}
+.cards-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px}
+.note-card{background:#fff;border-radius:12px;padding:16px;box-shadow:0 2px 8px rgba(0,0,0,.07);border-left:4px solid #4a90d9;transition:.2s}
+.note-card:hover{transform:translateY(-2px);box-shadow:0 4px 16px rgba(0,0,0,.12)}
+.note-card.muc-khan{border-left-color:#e74c3c}
+.note-card.muc-cao{border-left-color:#e67e22}
+.note-card.muc-trung{border-left-color:#f39c12}
+.note-card.muc-thap{border-left-color:#27ae60}
+.card-header-row{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:8px}
+.card-title{font-weight:700;font-size:14px;color:#1e3a5f;flex:1}
+.badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600}
+.badge-cho{background:#fff3cd;color:#856404}
+.badge-dang{background:#cce5ff;color:#004085}
+.badge-da{background:#d4edda;color:#155724}
+.badge-khan{background:#f8d7da;color:#721c24}
+.badge-cao{background:#ffe0cc;color:#7d3500}
+.badge-trung{background:#fff9cc;color:#7d6600}
+.badge-thap{background:#d1f5e0;color:#155724}
+.card-meta{font-size:11px;color:#888;margin-bottom:8px}
+.card-loai{display:inline-block;background:#eef2fb;color:#3d5a99;border-radius:4px;padding:2px 7px;font-size:11px;font-weight:600;margin-bottom:6px}
+.card-noidung{font-size:13px;color:#444;margin-bottom:8px;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.card-imgs{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px}
+.card-imgs img{width:52px;height:52px;object-fit:cover;border-radius:6px;cursor:pointer;border:1px solid #eee}
+.card-imgs img:hover{opacity:.85}
+.card-actions{display:flex;gap:6px;justify-content:flex-end}
+.btn-sm{padding:4px 10px;border-radius:6px;border:none;cursor:pointer;font-size:12px;font-weight:600}
+.btn-edit{background:#eef2fb;color:#3d5a99}
+.btn-edit:hover{background:#d0dbf5}
+.btn-del{background:#fde8e8;color:#c0392b}
+.btn-del:hover{background:#f5c6c6}
+.status-sel{padding:3px 8px;border-radius:6px;border:1px solid #ddd;font-size:12px;cursor:pointer;background:#f8f9fa}
+.gc-empty{text-align:center;padding:60px 20px;color:#aaa}
+.gc-empty i{font-size:48px;display:block;margin-bottom:12px}
+.gc-pagination{display:flex;justify-content:center;align-items:center;gap:6px;margin-top:16px}
+.gc-pagination button{padding:5px 12px;border:1px solid #ddd;border-radius:6px;background:#fff;cursor:pointer;font-size:13px}
+.gc-pagination button.active{background:#1e3a5f;color:#fff;border-color:#1e3a5f}
+.gc-pagination button:disabled{opacity:.4;cursor:not-allowed}
+.img-modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:9999;align-items:center;justify-content:center}
+.img-modal.show{display:flex}
+.img-modal img{max-width:90vw;max-height:90vh;border-radius:8px}
+.img-modal-close{position:absolute;top:16px;right:20px;color:#fff;font-size:28px;cursor:pointer;background:none;border:none}
+.supabase-warn{background:#fff3cd;border:1px solid #ffc107;border-radius:8px;padding:10px 14px;font-size:12px;color:#856404;margin-bottom:12px;display:none}
+</style>
+{% endblock %}
+{% block content %}<div class="page-header" style="margin-bottom:16px">
+  <h1 style="font-size:20px;font-weight:700;color:#1e3a5f;margin:0;display:flex;align-items:center;gap:8px">
+    <i class="bi bi-journal-text"></i> Ghi chú - Vấn đề phát sinh
+  </h1>
+</div>
+
+<div id="supabase-warn" class="supabase-warn">
+  <i class="bi bi-exclamation-triangle"></i> Supabase chưa cấu hình — ảnh sẽ không được lưu. Thêm <b>SUPABASE_URL</b> và <b>SUPABASE_KEY</b> vào biến môi trường.
+</div>
+
+<!-- Filter bar -->
+<div class="gc-filter-bar">
+  <input type="text" id="gc-search" placeholder="🔍 Tìm kiếm..." style="min-width:160px" oninput="gcDebounce()">
+  <select id="gc-loai" onchange="gcLoad(1)">
+    <option value="">-- Loại vấn đề --</option>
+    <option>Sản phẩm</option>
+    <option>Đặt hàng khách vãng lai</option>
+    <option>Đặt hàng silo</option>
+    <option>Đặt hàng forecast</option>
+    <option>Stock old</option>
+    <option>Stock đầu ngày</option>
+    <option>Packing</option>
+    <option>Sale</option>
+    <option>Tồn bồn</option>
+    <option>Batching</option>
+    <option>Bao bì</option>
+  </select>
+  <select id="gc-mucdo" onchange="gcLoad(1)">
+    <option value="">-- Mức độ --</option>
+    <option>Thấp</option><option>Trung</option><option>Cao</option><option>Khẩn</option>
+  </select>
+  <select id="gc-trangthai" onchange="gcLoad(1)">
+    <option value="">-- Trạng thái --</option>
+    <option>Chờ xử lý</option><option>Đang xử lý</option><option>Đã giải quyết</option>
+  </select>
+  <input type="date" id="gc-tungay" onchange="gcLoad(1)" title="Từ ngày">
+  <input type="date" id="gc-denngay" onchange="gcLoad(1)" title="Đến ngày">
+  <button class="btn-export" onclick="gcExport()"><i class="bi bi-file-earmark-excel"></i> Xuất Excel</button>
+</div>
+
+<div class="gc-layout">
+  <!-- FORM thêm/sửa -->
+  <div class="gc-form-card">
+    <h4><i class="bi bi-plus-circle"></i> <span id="form-title-text">Thêm ghi chú mới</span></h4>
+    <form id="gc-form" onsubmit="gcSubmit(event)">
+      <input type="hidden" id="gc-edit-id" value="">
+      <div class="gc-field">
+        <label>Tiêu đề *</label>
+        <input type="text" id="gc-tieude" placeholder="Tóm tắt vấn đề..." required>
+      </div>
+      <div class="gc-field">
+        <label>Nội dung</label>
+        <textarea id="gc-noidung" placeholder="Mô tả chi tiết vấn đề, nguyên nhân, hướng xử lý..."></textarea>
+      </div>
+      <div class="gc-field">
+        <label>Loại vấn đề</label>
+        <select id="gc-loai-form">
+          <option value="">-- Chọn loại --</option>
+          <option>Sản phẩm</option>
+          <option>Đặt hàng khách vãng lai</option>
+          <option>Đặt hàng silo</option>
+          <option>Đặt hàng forecast</option>
+          <option>Stock old</option>
+          <option>Stock đầu ngày</option>
+          <option>Packing</option>
+          <option>Sale</option>
+          <option>Tồn bồn</option>
+          <option>Batching</option>
+          <option>Bao bì</option>
+        </select>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <div class="gc-field">
+          <label>Mức độ</label>
+          <select id="gc-mucdo-form">
+            <option>Thấp</option><option>Trung</option><option>Cao</option><option>Khẩn</option>
+          </select>
+        </div>
+        <div class="gc-field">
+          <label>Trạng thái</label>
+          <select id="gc-trangthai-form">
+            <option>Chờ xử lý</option><option>Đang xử lý</option><option>Đã giải quyết</option>
+          </select>
+        </div>
+      </div>
+      <div class="gc-field">
+        <label>Hình ảnh (tối đa 5)</label>
+        <div class="upload-zone" onclick="document.getElementById('gc-files').click()">
+          <i class="bi bi-cloud-upload" style="font-size:24px;color:#4a90d9"></i>
+          <div style="font-size:12px;color:#888;margin-top:4px">Click hoặc kéo thả ảnh vào đây</div>
+          <input type="file" id="gc-files" multiple accept="image/*" onchange="gcPreviewFiles(this)">
+        </div>
+        <div id="gc-img-preview" class="img-preview-list"></div>
+        <div id="gc-keep-imgs" class="img-preview-list"></div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:4px">
+        <button type="submit" class="btn btn-primary" style="flex:1" id="gc-submit-btn">
+          <i class="bi bi-check-lg"></i> Lưu ghi chú
+        </button>
+        <button type="button" class="btn btn-secondary" onclick="gcReset()" id="gc-cancel-btn" style="display:none">
+          Hủy
+        </button>
+      </div>
+    </form>
+  </div>
+
+  <!-- CARDS LIST -->
+  <div>
+    <div id="gc-cards-grid" class="cards-grid"></div>
+    <div id="gc-pagination" class="gc-pagination"></div>
+  </div>
+</div>
+
+<!-- Image lightbox modal -->
+<div class="img-modal" id="img-modal" onclick="closeImgModal()">
+  <button class="img-modal-close" onclick="closeImgModal()">✕</button>
+  <img id="img-modal-src" src="" alt="preview">
+</div>
+{% endblock %}
+{% block scripts %}<script>
+let gcPage=1,gcTotal=0,gcPages=1,gcTimer=null;
+const LOAI_LIST=['Sản phẩm','Đặt hàng khách vãng lai','Đặt hàng silo','Đặt hàng forecast','Stock old','Stock đầu ngày','Packing','Sale','Tồn bồn','Batching','Bao bì'];
+const MD_CLS={'Khẩn':'muc-khan','Cao':'muc-cao','Trung':'muc-trung','Thấp':'muc-thap'};
+const MD_BADGE={'Khẩn':'badge-khan','Cao':'badge-cao','Trung':'badge-trung','Thấp':'badge-thap'};
+const TT_BADGE={'Chờ xử lý':'badge-cho','Đang xử lý':'badge-dang','Đã giải quyết':'badge-da'};
+let newFiles=[],keepUrls=[];
+
+function gcDebounce(){clearTimeout(gcTimer);gcTimer=setTimeout(()=>gcLoad(1),400);}
+
+async function gcLoad(page){
+  gcPage=page||gcPage;
+  const params=new URLSearchParams({
+    page:gcPage,per_page:12,
+    search:document.getElementById('gc-search').value,
+    loai:document.getElementById('gc-loai').value,
+    muc_do:document.getElementById('gc-mucdo').value,
+    trang_thai:document.getElementById('gc-trangthai').value,
+    tu_ngay:document.getElementById('gc-tungay').value,
+    den_ngay:document.getElementById('gc-denngay').value
+  });
+  const res=await api.get('/api/ghichu/list?'+params);
+  if(!res||!res.success){showToast('Lỗi tải dữ liệu','error');return;}
+  gcTotal=res.total;gcPages=res.total_pages;
+  renderCards(res.data);
+  renderPagination();
+}
+
+function renderCards(items){
+  const g=document.getElementById('gc-cards-grid');
+  if(!items.length){
+    g.innerHTML='<div class="gc-empty" style="grid-column:1/-1"><i class="bi bi-journal-x"></i>Chưa có ghi chú nào</div>';
+    return;
+  }
+  g.innerHTML=items.map(n=>{
+    const mdCls=MD_CLS[n.MucDo]||'';
+    const mdBadge=MD_BADGE[n.MucDo]||'badge-thap';
+    const ttBadge=TT_BADGE[n.TrangThai]||'badge-cho';
+    const imgs=n.HinhAnh&&n.HinhAnh.length?n.HinhAnh.slice(0,4).map(u=>`<img src="${u}" alt="img" onclick="openImgModal('${u}')" loading="lazy">`).join(''):'';
+    const moreImg=n.HinhAnh&&n.HinhAnh.length>4?`<span style="font-size:11px;color:#888">+${n.HinhAnh.length-4}</span>`:'';
+    const ttOptions=['Chờ xử lý','Đang xử lý','Đã giải quyết'].map(s=>`<option ${s===n.TrangThai?'selected':''}>${s}</option>`).join('');
+    return `<div class="note-card ${mdCls}" id="card-${n.ID}">
+      <div class="card-header-row">
+        <div class="card-title">${escHtml(n.TieuDe)}</div>
+        <span class="badge ${mdBadge}">${n.MucDo||'Thấp'}</span>
+      </div>
+      ${n.LoaiVanDe?`<div class="card-loai"><i class="bi bi-tag"></i> ${escHtml(n.LoaiVanDe)}</div>`:''}
+      <div class="card-meta"><i class="bi bi-clock"></i> ${n.ThoiGianTao} &nbsp;|&nbsp; <i class="bi bi-person"></i> ${n.NguoiTao}</div>
+      ${n.NoiDung?`<div class="card-noidung">${escHtml(n.NoiDung)}</div>`:''}
+      ${imgs||moreImg?`<div class="card-imgs">${imgs}${moreImg}</div>`:''}
+      <div class="card-actions">
+        <select class="status-sel" onchange="gcChangeStatus(${n.ID},this.value)" title="Đổi trạng thái">${ttOptions}</select>
+        <span class="badge ${ttBadge}">${n.TrangThai}</span>
+        <button class="btn-sm btn-edit" onclick="gcStartEdit(${n.ID})"><i class="bi bi-pencil"></i></button>
+        <button class="btn-sm btn-del" onclick="gcDelete(${n.ID})"><i class="bi bi-trash"></i></button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderPagination(){
+  const p=document.getElementById('gc-pagination');
+  if(gcPages<=1){p.innerHTML='';return;}
+  let h=`<button onclick="gcLoad(1)" ${gcPage<=1?'disabled':''}>«</button>`;
+  h+=`<button onclick="gcLoad(${gcPage-1})" ${gcPage<=1?'disabled':''}>‹</button>`;
+  const s=Math.max(1,gcPage-2),e=Math.min(gcPages,s+4);
+  for(let i=s;i<=e;i++) h+=`<button class="${i===gcPage?'active':''}" onclick="gcLoad(${i})">${i}</button>`;
+  h+=`<button onclick="gcLoad(${gcPage+1})" ${gcPage>=gcPages?'disabled':''}>›</button>`;
+  h+=`<button onclick="gcLoad(${gcPages})" ${gcPage>=gcPages?'disabled':''}>»</button>`;
+  h+=`<span style="font-size:12px;color:#888;margin-left:8px">${gcTotal} ghi chú</span>`;
+  p.innerHTML=h;
+}
+
+function gcPreviewFiles(input){
+  newFiles=[...input.files];
+  const pre=document.getElementById('gc-img-preview');
+  pre.innerHTML='';
+  newFiles.forEach((f,i)=>{
+    const url=URL.createObjectURL(f);
+    pre.innerHTML+=`<div class="img-preview-item"><img src="${url}"><button type="button" class="rm-img" onclick="gcRemoveNewFile(${i})">✕</button></div>`;
+  });
+}
+
+function gcRemoveNewFile(i){
+  newFiles.splice(i,1);
+  // refresh preview
+  const dt=new DataTransfer();
+  newFiles.forEach(f=>dt.items.add(f));
+  document.getElementById('gc-files').files=dt.files;
+  gcPreviewFiles(document.getElementById('gc-files'));
+}
+
+function gcReset(){
+  document.getElementById('gc-edit-id').value='';
+  document.getElementById('gc-form').reset();
+  document.getElementById('gc-img-preview').innerHTML='';
+  document.getElementById('gc-keep-imgs').innerHTML='';
+  document.getElementById('form-title-text').textContent='Thêm ghi chú mới';
+  document.getElementById('gc-cancel-btn').style.display='none';
+  keepUrls=[];newFiles=[];
+}
+
+async function gcSubmit(e){
+  e.preventDefault();
+  const editId=document.getElementById('gc-edit-id').value;
+  const fd=new FormData();
+  fd.append('tieu_de',document.getElementById('gc-tieude').value);
+  fd.append('noi_dung',document.getElementById('gc-noidung').value);
+  fd.append('loai_van_de',document.getElementById('gc-loai-form').value);
+  fd.append('muc_do',document.getElementById('gc-mucdo-form').value);
+  fd.append('trang_thai',document.getElementById('gc-trangthai-form').value);
+  if(editId) fd.append('keep_images',JSON.stringify(keepUrls));
+  newFiles.forEach(f=>fd.append('hinh_anh',f));
+  const btn=document.getElementById('gc-submit-btn');
+  btn.disabled=true;btn.innerHTML='<i class="bi bi-hourglass-split"></i> Đang lưu...';
+  try{
+    const url=editId?`/api/ghichu/${editId}/edit`:'/api/ghichu/add';
+    const res=await api.upload(url,fd);
+    if(res&&res.success){
+      showToast(editId?'Đã cập nhật ghi chú':'Đã thêm ghi chú mới','success');
+      gcReset();gcLoad(editId?gcPage:1);
+    } else {
+      showToast((res&&res.message)||'Lỗi lưu ghi chú','error');
+    }
+  } catch(err){showToast('Lỗi kết nối','error');}
+  btn.disabled=false;btn.innerHTML='<i class="bi bi-check-lg"></i> Lưu ghi chú';
+}
+
+async function gcStartEdit(id){
+  const res=await api.get(`/api/ghichu/${id}`);
+  if(!res||!res.success){showToast('Lỗi tải dữ liệu','error');return;}
+  const d=res.data;
+  document.getElementById('gc-edit-id').value=id;
+  document.getElementById('gc-tieude').value=d.TieuDe;
+  document.getElementById('gc-noidung').value=d.NoiDung;
+  document.getElementById('gc-loai-form').value=d.LoaiVanDe;
+  document.getElementById('gc-mucdo-form').value=d.MucDo;
+  document.getElementById('gc-trangthai-form').value=d.TrangThai;
+  document.getElementById('form-title-text').textContent='Chỉnh sửa ghi chú';
+  document.getElementById('gc-cancel-btn').style.display='';
+  // show kept images
+  keepUrls=d.HinhAnh||[];
+  const ki=document.getElementById('gc-keep-imgs');
+  ki.innerHTML='<div style="width:100%;font-size:11px;color:#888;margin-bottom:2px">Ảnh hiện tại:</div>'+
+    keepUrls.map((u,i)=>`<div class="img-preview-item"><img src="${u}"><button type="button" class="rm-img" onclick="gcRemoveKeep(${i})">✕</button></div>`).join('');
+  newFiles=[];document.getElementById('gc-img-preview').innerHTML='';
+  document.getElementById('gc-files').value='';
+  document.querySelector('.gc-form-card').scrollIntoView({behavior:'smooth'});
+}
+
+function gcRemoveKeep(i){
+  keepUrls.splice(i,1);
+  const ki=document.getElementById('gc-keep-imgs');
+  ki.innerHTML='<div style="width:100%;font-size:11px;color:#888;margin-bottom:2px">Ảnh hiện tại:</div>'+
+    keepUrls.map((u,idx)=>`<div class="img-preview-item"><img src="${u}"><button type="button" class="rm-img" onclick="gcRemoveKeep(${idx})">✕</button></div>`).join('');
+}
+
+async function gcDelete(id){
+  if(!confirm('Bạn có chắc muốn xóa ghi chú này?')) return;
+  const res=await api.post(`/api/ghichu/${id}/delete`,{});
+  if(res&&res.success){showToast('Đã xóa','success');gcLoad(gcPage);}
+  else showToast((res&&res.message)||'Lỗi xóa','error');
+}
+
+async function gcChangeStatus(id,val){
+  const res=await api.post(`/api/ghichu/${id}/status`,{trang_thai:val});
+  if(res&&res.success) showToast(res.message,'success');
+  else showToast('Lỗi cập nhật','error');
+  gcLoad(gcPage);
+}
+
+function gcExport(){
+  const params=new URLSearchParams({
+    loai:document.getElementById('gc-loai').value,
+    muc_do:document.getElementById('gc-mucdo').value,
+    trang_thai:document.getElementById('gc-trangthai').value,
+    tu_ngay:document.getElementById('gc-tungay').value,
+    den_ngay:document.getElementById('gc-denngay').value
+  });
+  window.open('/api/ghichu/export-excel?'+params,'_blank');
+}
+
+function openImgModal(url){
+  document.getElementById('img-modal-src').src=url;
+  document.getElementById('img-modal').classList.add('show');
+}
+function closeImgModal(){
+  document.getElementById('img-modal').classList.remove('show');
+  document.getElementById('img-modal-src').src='';
+}
+document.addEventListener('keydown',e=>{if(e.key==='Escape') closeImgModal();});
+
+function escHtml(t){const d=document.createElement('span');d.textContent=t||'';return d.innerHTML;}
+
+// Check Supabase config
+async function checkSupabase(){
+  try{
+    const r=await api.get('/api/ghichu/check-config');
+    if(r&&!r.supabase_ok) document.getElementById('supabase-warn').style.display='block';
+  } catch(e){}
+}
+
+document.addEventListener('DOMContentLoaded',()=>{gcLoad(1);checkSupabase();});
+</script>
+{% endblock %}

@@ -198,6 +198,26 @@ for sub_name, module_path in module_mappings.items():
 
 conn.commit()
 
+# ===== Tạo bảng GhiChu (nếu chưa có) =====
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS GhiChu (
+    ID INTEGER PRIMARY KEY AUTOINCREMENT,
+    TieuDe TEXT,
+    NoiDung TEXT,
+    LoaiVanDe TEXT,
+    MucDo TEXT,
+    TrangThai TEXT DEFAULT 'Chờ xử lý',
+    HinhAnh TEXT,
+    ThoiGianTao TEXT,
+    NguoiTao TEXT,
+    ThoiGianSua TEXT,
+    NguoiSua TEXT,
+    [Đã xóa] INTEGER DEFAULT 0
+)
+""")
+conn.commit()
+print("✅ Đã tạo bảng GhiChu")
+
 # ===== Kiểm tra kết quả =====
 print("\n=== Kết quả khởi tạo ===")
 cursor.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
@@ -216,3 +236,4 @@ for u in users:
 
 conn.close()
 print("\n✅ Khởi tạo database hoàn tất!")
+
