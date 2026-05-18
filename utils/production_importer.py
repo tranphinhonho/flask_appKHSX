@@ -536,7 +536,7 @@ class ProductionImporter:
                 cursor.execute(f"""
                     INSERT INTO {self._q('Mixer')} 
                     ({self._q('Mã mixer')}, {self._q('Ngày trộn')}, {self._q('ID sản phẩm')}, {self._q('Batch size')}, 
-                     {self._q('Số lượng thực tế')}, {self._q('Loss (kg)')}, {self._q('Loss (%)')},
+                     {self._q('Số lượng thực tế')}, {self._q('Loss (kg)')}, "Loss (%%)",
                      {self._q('Đích đến')}, {self._q('Số máy')}, {self._q('Ca sản xuất')}, {self._q('Ghi chú')},
                      {self._q('Người tạo')}, {self._q('Thời gian tạo')}, {self._q('Đã xóa')})
                     VALUES ({_p}, {_p}, {_p}, {_p}, {_p}, {_p}, {_p}, {_p}, {_p}, {_p}, {_p}, {_p}, {_p}, {da_xoa_val})
