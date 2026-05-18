@@ -214,7 +214,7 @@ def calculate():
         "WHERE [Đã xóa]=0 AND [Ngày stock old]=? GROUP BY [ID sản phẩm]",
         (ngay_stock_old,)
     )
-    so_map = {row[0]: row[1] for row in cursor.fetchall()}
+    so_map = {int(row[0]): row[1] for row in cursor.fetchall()}
 
     # 3. Packing N-1 (batch)
     cursor.execute(
@@ -222,7 +222,7 @@ def calculate():
         "WHERE [Đã xóa]=0 AND [Ngày packing]=? GROUP BY [ID sản phẩm]",
         (ngay_packing,)
     )
-    pk_map = {row[0]: row[1] for row in cursor.fetchall()}
+    pk_map = {int(row[0]): row[1] for row in cursor.fetchall()}
 
     # 4. Sale N-1 (batch)
     cursor.execute(
@@ -230,7 +230,7 @@ def calculate():
         "WHERE [Đã xóa]=0 AND [Ngày sale]=? GROUP BY [ID sản phẩm]",
         (ngay_sale,)
     )
-    sl_map = {row[0]: row[1] for row in cursor.fetchall()}
+    sl_map = {int(row[0]): row[1] for row in cursor.fetchall()}
 
     # 5. GC2 Week B - StockHomNay T7
     cursor.execute(
@@ -238,7 +238,7 @@ def calculate():
         "WHERE [Đã xóa]=0 AND [Ngày stock]=? GROUP BY [ID sản phẩm]",
         (sat_B.strftime('%Y-%m-%d'),)
     )
-    st_B_map = {row[0]: row[1] for row in cursor.fetchall()}
+    st_B_map = {int(row[0]): row[1] for row in cursor.fetchall()}
 
     # 6. GC2 Week B - Mixer Batching
     cursor.execute(
@@ -246,7 +246,7 @@ def calculate():
         "WHERE [Đã xóa]=0 AND [Ngày trộn]>=? AND [Ngày trộn]<=? GROUP BY [ID sản phẩm]",
         (sat_B.strftime('%Y-%m-%d'), fri_B.strftime('%Y-%m-%d'))
     )
-    bat_B_map = {row[0]: row[1] for row in cursor.fetchall()}
+    bat_B_map = {int(row[0]): row[1] for row in cursor.fetchall()}
 
     # 7. GC2 Week B - Forecast
     cursor.execute(
@@ -255,7 +255,7 @@ def calculate():
         "AND [Ngày đặt]>=? AND [Ngày đặt]<=? GROUP BY [ID sản phẩm]",
         (sat_B.strftime('%Y-%m-%d'), fri_B.strftime('%Y-%m-%d'))
     )
-    fc_B_map = {row[0]: row[1] for row in cursor.fetchall()}
+    fc_B_map = {int(row[0]): row[1] for row in cursor.fetchall()}
 
     # 8. GC2 Week B - KVL
     cursor.execute(
@@ -264,7 +264,7 @@ def calculate():
         "AND [Ngày lấy]>=? AND [Ngày lấy]<=? GROUP BY [ID sản phẩm]",
         (sat_B.strftime('%Y-%m-%d'), fri_B.strftime('%Y-%m-%d'))
     )
-    kvl_B_map = {row[0]: row[1] for row in cursor.fetchall()}
+    kvl_B_map = {int(row[0]): row[1] for row in cursor.fetchall()}
 
     # 9. GC2 Week A (chỉ cần khi is_saturday)
     st_A_map = bat_A_map = fc_A_map = kvl_A_map = {}
@@ -274,14 +274,14 @@ def calculate():
             "WHERE [Đã xóa]=0 AND [Ngày stock]=? GROUP BY [ID sản phẩm]",
             (sat_A.strftime('%Y-%m-%d'),)
         )
-        st_A_map = {row[0]: row[1] for row in cursor.fetchall()}
+        st_A_map = {int(row[0]): row[1] for row in cursor.fetchall()}
 
         cursor.execute(
             "SELECT [ID sản phẩm], COALESCE(SUM([Số lượng thực tế]),0) FROM Mixer "
             "WHERE [Đã xóa]=0 AND [Ngày trộn]>=? AND [Ngày trộn]<=? GROUP BY [ID sản phẩm]",
             (sat_A.strftime('%Y-%m-%d'), fri_A.strftime('%Y-%m-%d'))
         )
-        bat_A_map = {row[0]: row[1] for row in cursor.fetchall()}
+        bat_A_map = {int(row[0]): row[1] for row in cursor.fetchall()}
 
         cursor.execute(
             "SELECT [ID sản phẩm], COALESCE(SUM([Số lượng]),0) FROM DatHang "
@@ -289,7 +289,7 @@ def calculate():
             "AND [Ngày đặt]>=? AND [Ngày đặt]<=? GROUP BY [ID sản phẩm]",
             (sat_A.strftime('%Y-%m-%d'), fri_A.strftime('%Y-%m-%d'))
         )
-        fc_A_map = {row[0]: row[1] for row in cursor.fetchall()}
+        fc_A_map = {int(row[0]): row[1] for row in cursor.fetchall()}
 
         cursor.execute(
             "SELECT [ID sản phẩm], COALESCE(SUM([Số lượng]),0) FROM DatHang "
@@ -297,7 +297,7 @@ def calculate():
             "AND [Ngày lấy]>=? AND [Ngày lấy]<=? GROUP BY [ID sản phẩm]",
             (sat_A.strftime('%Y-%m-%d'), fri_A.strftime('%Y-%m-%d'))
         )
-        kvl_A_map = {row[0]: row[1] for row in cursor.fetchall()}
+        kvl_A_map = {int(row[0]): row[1] for row in cursor.fetchall()}
 
     conn.close()
 
