@@ -334,7 +334,8 @@
 
     async function loadStockList() {
         if (!_selectedDay || !_selectedYear) return;
-        const ngay = `${_selectedYear}-${String(_selectedMonth).padStart(2,'0')}-${String(_selectedDay).padStart(2,'0')}`;
+        const y = _selectedYear, m = _selectedMonth;
+        const ngay = `${y}-${String(m).padStart(2,'0')}-${String(_selectedDay).padStart(2,'0')}`;
 
         let params = `?ngay=${ngay}&per_page=300`;
         if (_selectedVN !== 'Tất cả') params += `&vatnuoi=${_selectedVN}`;
