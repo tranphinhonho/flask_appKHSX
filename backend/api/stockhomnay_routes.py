@@ -74,6 +74,13 @@ def get_days_in_month():
 @login_required
 def get_list():
     """Danh sách với computed Aver, DOH, Plan, Day5"""
+    import traceback
+    try:
+        return _get_list_impl()
+    except Exception as e:
+        return jsonify({'success': False, 'message': f'Lỗi: {str(e)}', 'trace': traceback.format_exc()}), 500
+
+def _get_list_impl():
     ngay = request.args.get('ngay')
     vatnuoi = request.args.get('vatnuoi')
     per_page = request.args.get('per_page', 300, type=int)
@@ -157,32 +164,36 @@ def get_list():
     pet_order = {'H': 1, 'G': 2, 'V': 3, 'B': 4, 'C': 5, 'D': 6}
     data = []
     for row in rows:
-        d          = dict(zip(cols, row))
-        id_sp      = int(d['ID sản phẩm'])
-        stock      = d['Số lượng'] or 0
-        batch_size = d['Batch size'] or 2800
-        kq         = d['Kết quả GC2'] or 0
+        try:
+            d          = dict(zip(cols, row))
+            id_sp      = int(d['ID sản phẩm'])
+            stock      = float(d['Số lượng'] or 0)
+            batch_size = float(d['Batch size'] or 2800)
+            kq         = float(d['Kết quả GC2'] or 0)
 
-        aver     = aver_map.get(id_sp, 0)
-        doh      = round(stock / aver, 1) if aver > 0 else 0
-        plan_val = 0
-        if doh < 3 and kq < 0 and aver > 0:
-            plan_raw = min(aver * 3, abs(kq))
-            if plan_raw > 0 and batch_size > 0:
-                plan_val = int(math.ceil(plan_raw / batch_size) * batch_size)
+            aver     = float(aver_map.get(id_sp, 0))
+            doh      = round(stock / aver, 1) if aver > 0 else 0
+            plan_val = 0
+            if doh < 3 and kq < 0 and aver > 0:
+                plan_raw = min(aver * 3, abs(kq))
+                if plan_raw > 0 and batch_size > 0:
+                    plan_val = int(math.ceil(plan_raw / batch_size) * batch_size)
 
-        day5_pk  = day5_map.get(id_sp, 0)
-        day5     = min(stock, day5_pk)
+            day5_pk  = float(day5_map.get(id_sp, 0))
+            day5     = min(stock, day5_pk)
 
-        d['Aver']      = int(aver)
-        d['DOH']       = doh
-        d['Plan']      = plan_val
-        d['Day5']      = int(day5)
-        d['_pet_order'] = pet_order.get(d.get('Vật nuôi', ''), 99)
-        data.append(d)
+            d['Aver']      = int(aver)
+            d['DOH']       = doh
+            d['Plan']      = plan_val
+            d['Day5']      = int(day5)
+            d['_pet_order'] = pet_order.get(d.get('Vật nuôi', ''), 99)
+            data.append(d)
+        except Exception:
+            continue
 
     # Sort by pet order then KQ
-    data.sort(key=lambda x: (x['_pet_order'], x.get('Kết quả GC2') or 0))
+    data.sort(key=lambda x: (x['_pet_order'], float(x.get('Kết quả GC2') or 0)))
+
     for d in data:
         del d['_pet_order']
 
