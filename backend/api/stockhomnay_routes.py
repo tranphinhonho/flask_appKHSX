@@ -112,54 +112,74 @@ def get_list():
     rows = cursor.fetchall()
     cols = [d[0] for d in cursor.description]
 
-    # Compute Aver, DOH, Plan, Day5
-    today = get_vietnam_time().date()
-    date_5ago = (today - timedelta(days=5)).strftime('%Y-%m-%d')
+    if not rows:
+        conn.close()
+        return jsonify({'success': True, 'data': [], 'total': total})
 
-    data = []
+    # Lay danh sach id_sp tu result
+    id_sp_list = list({row[1] for row in rows})  # col index 1 = ID san pham
+
+    # Batch: Aver (tong sale / so ngay)
+    aver_map = {}
+    if id_sp_list:
+        placeholders = ','.join(['?' for _ in id_sp_list])
+        cursor.execute(f"""
+            SELECT [ID sản phẩm],
+                   COALESCE(SUM([Số lượng]),0) as tong,
+                   COUNT(DISTINCT [Ngày sale]) as so_ngay
+            FROM Sale
+            WHERE [Đã xóa] = 0 AND [ID sản phẩm] IN ({placeholders})
+            GROUP BY [ID sản phẩm]
+        """, id_sp_list)
+        for r in cursor.fetchall():
+            tong, so_ngay = r[1], r[2]
+            aver_map[int(r[0])] = (tong / so_ngay) if so_ngay > 0 else 0
+
+    # Batch: Day5 (packing 5 ngay gan nhat)
+    today      = get_vietnam_time().date()
+    date_5ago  = (today - timedelta(days=5)).strftime('%Y-%m-%d')
+    day5_map   = {}
+    if id_sp_list:
+        cursor.execute(f"""
+            SELECT [ID sản phẩm], COALESCE(SUM([Số lượng]),0)
+            FROM Packing
+            WHERE [Đã xóa] = 0
+              AND CAST([Ngày packing] AS TEXT) >= ?
+              AND [ID sản phẩm] IN ({placeholders})
+            GROUP BY [ID sản phẩm]
+        """, [date_5ago] + id_sp_list)
+        for r in cursor.fetchall():
+            day5_map[int(r[0])] = r[1]
+
+    conn.close()
+
+    # Compute Aver, DOH, Plan, Day5 from maps
     pet_order = {'H': 1, 'G': 2, 'V': 3, 'B': 4, 'C': 5, 'D': 6}
-
+    data = []
     for row in rows:
-        d = dict(zip(cols, row))
-        id_sp = d['ID sản phẩm']
-        stock = d['Số lượng'] or 0
+        d          = dict(zip(cols, row))
+        id_sp      = int(d['ID sản phẩm'])
+        stock      = d['Số lượng'] or 0
         batch_size = d['Batch size'] or 2800
-        kq = d['Kết quả GC2'] or 0
+        kq         = d['Kết quả GC2'] or 0
 
-        # Aver
-        cursor.execute("""
-            SELECT COALESCE(SUM([Số lượng]),0), COUNT(DISTINCT [Ngày sale])
-            FROM Sale WHERE [ID sản phẩm] = ? AND [Đã xóa] = 0
-        """, (id_sp,))
-        sr = cursor.fetchone()
-        aver = (sr[0] / sr[1]) if sr[1] > 0 else 0
-
-        # DOH
-        doh = round(stock / aver, 1) if aver > 0 else 0
-
-        # Plan = min(Aver*3, |KQ|) rounded up by batch_size, only if DOH<3 & KQ<0
+        aver     = aver_map.get(id_sp, 0)
+        doh      = round(stock / aver, 1) if aver > 0 else 0
         plan_val = 0
         if doh < 3 and kq < 0 and aver > 0:
             plan_raw = min(aver * 3, abs(kq))
             if plan_raw > 0 and batch_size > 0:
                 plan_val = int(math.ceil(plan_raw / batch_size) * batch_size)
 
-        # Day5
-        cursor.execute("""
-            SELECT COALESCE(SUM([Số lượng]),0) FROM Packing
-            WHERE [ID sản phẩm] = ? AND [Đã xóa] = 0 AND [Ngày packing] >= ?
-        """, (id_sp, date_5ago))
-        day5_pk = cursor.fetchone()[0]
-        day5 = min(stock, day5_pk)
+        day5_pk  = day5_map.get(id_sp, 0)
+        day5     = min(stock, day5_pk)
 
-        d['Aver'] = int(aver)
-        d['DOH'] = doh
-        d['Plan'] = plan_val
-        d['Day5'] = int(day5)
+        d['Aver']      = int(aver)
+        d['DOH']       = doh
+        d['Plan']      = plan_val
+        d['Day5']      = int(day5)
         d['_pet_order'] = pet_order.get(d.get('Vật nuôi', ''), 99)
         data.append(d)
-
-    conn.close()
 
     # Sort by pet order then KQ
     data.sort(key=lambda x: (x['_pet_order'], x.get('Kết quả GC2') or 0))
@@ -167,6 +187,8 @@ def get_list():
         del d['_pet_order']
 
     return jsonify({'success': True, 'data': data, 'total': total})
+
+
 
 
 # ==================== Tính toán tự động ====================
