@@ -38,15 +38,18 @@ def get_days_in_month():
         month = month or now.month
 
     month_str = f"{year}-{month:02d}"
-    conn = db.connect_db()
+    conn   = db.connect_db()
     cursor = conn.cursor()
+
+    # Dùng CAST TEXT + LEFT() để tránh lỗi DATE vs TEXT trên PostgreSQL
     cursor.execute("""
-        SELECT DISTINCT CAST([Ngày stock] AS TEXT) as ngay_str
+        SELECT DISTINCT LEFT(CAST([Ngày stock] AS TEXT), 10) as ngay_str
         FROM StockHomNay
         WHERE [Đã xóa] = 0
-          AND CAST([Ngày stock] AS TEXT) LIKE ?
+          AND LEFT(CAST([Ngày stock] AS TEXT), 10) >= ?
+          AND LEFT(CAST([Ngày stock] AS TEXT), 10) <= ?
         ORDER BY ngay_str
-    """, (month_str + '%',))
+    """, (month_str + '-01', month_str + '-31'))
     rows = cursor.fetchall()
     conn.close()
 
@@ -66,6 +69,7 @@ def get_days_in_month():
 
 
 
+
 @stockhomnay_bp.route('/api/stockhomnay', methods=['GET'])
 @login_required
 def get_list():
@@ -78,7 +82,7 @@ def get_list():
     params = []
 
     if ngay:
-        conds.append("s.[Ngày stock] = ?")
+        conds.append("CAST(s.[Ngày stock] AS TEXT) = ?")
         params.append(ngay)
     if vatnuoi and vatnuoi != 'Tất cả':
         conds.append("sp.[Vật nuôi] = ?")
