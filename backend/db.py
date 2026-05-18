@@ -114,11 +114,11 @@ def _translate_sql(sql):
     )
 
     # Fix COALESCE type mismatch: COALESCE("col", 0) → COALESCE("col"::numeric, 0)
+    # Also handles table alias: COALESCE(sh."col", 0) → COALESCE(sh."col"::numeric, 0)
     # TEXT columns compared with integer literal 0 cause type error in PostgreSQL
-    # Only matches direct column access (not nested functions like SUM/AVG already handled)
     result = re.sub(
-        r'COALESCE\("([^"]+)",\s*0\)',
-        r'COALESCE("\1"::numeric, 0)',
+        r'COALESCE\((\w+\.)?"([^"]+)",\s*0\)',
+        lambda m: f'COALESCE({m.group(1) or ""}"{m.group(2)}"::numeric, 0)',
         result
     )
 
