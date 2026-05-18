@@ -343,6 +343,11 @@
         const r = await api.get(`/api/stockhomnay${params}`);
         const c = document.getElementById('stock-table');
 
+        if (!r || r.success === false) {
+            c.innerHTML = `<div style="padding:8px;background:#f8d7da;border-radius:4px">❌ ${r?.message || 'Lỗi API'}</div>`;
+            return;
+        }
+
         if (!r?.data?.length) { c.innerHTML = `<p class="text-muted">Không có dữ liệu ngày ${_selectedDay}/${m}/${y}</p>`; return; }
 
         const cols = ['Code cám', 'Tên cám', 'Vật nuôi', 'Số lượng', 'Aver', 'DOH', 'Plan', 'Day5', 'Kết quả GC2', 'Ghi chú'];
