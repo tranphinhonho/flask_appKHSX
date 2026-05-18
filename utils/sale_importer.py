@@ -18,6 +18,16 @@ class SaleImporter:
     # Default file path
     DEFAULT_FILE = "EXCEL/DAILY SALED REPORT THANG 1.2026.xlsm"
     
+    # ----------------------------------------------------------------
+    # ALIAS MAP: ten_cam_trong_excel -> {'code_cam': ..., 'ten_cam': ...}
+    # Dùng khi ten_cam trong Excel khác với ten_cam trong DB
+    # ----------------------------------------------------------------
+    ALIAS_MAP = {
+        # ten_cam goc (trong Excel)  ->  code_cam that trong DB
+        '553MFSILO': {'code_cam': '332211', 'ten_cam': '553MF'},
+        '550XPRO':   {'code_cam': '312028', 'ten_cam': '550XPro'},
+    }
+    
     # Column mapping (0-indexed)
     COL_TEN_CAM = 28      # Cột AC - Tên cám
     COL_KICH_CO_BAO = 29  # Cột AD - Kích cỡ đóng bao
@@ -268,8 +278,24 @@ class SaleImporter:
         return list(aggregated.values())
     
     def _get_product_id(self, cursor, ten_cam: str) -> Optional[int]:
-        """Tìm ID sản phẩm từ Tên cám"""
+        """Tìm ID sản phẩm từ Tên cám hoặc Code cám (hỗ trợ alias map)"""
         _p = self._ph()
+        ten_cam_upper = ten_cam.upper().strip()
+
+        # 1. Kiểm tra alias map trước (tra theo code_cam)
+        for alias_key, alias_val in self.ALIAS_MAP.items():
+            if ten_cam_upper == alias_key.upper():
+                code_cam = alias_val['code_cam']
+                cursor.execute(f"""
+                    SELECT {self._q('ID')}
+                    FROM {self._q('SanPham')}
+                    WHERE TRIM({self._q('Code cám')}) = {_p} AND {self._da_xoa_check()}
+                """, (code_cam,))
+                result = cursor.fetchone()
+                if result:
+                    return result[0]
+
+        # 2. Tìm chính xác theo Tên cám
         cursor.execute(f"""
             SELECT {self._q('ID')} 
             FROM {self._q('SanPham')} 
