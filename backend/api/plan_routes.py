@@ -173,13 +173,14 @@ def calculate_plan():
 
     # Subquery: stock mới nhất cho mỗi SP (tránh nhiều rows khi JOIN StockHomNay)
     SH_LATEST = """(
-        SELECT sh2.[ID sản phẩm], sh2.[Số lượng]
+        SELECT sh2.[ID sản phẩm], MAX(sh2.[Số lượng]) as [Số lượng]
         FROM StockHomNay sh2
         WHERE sh2.[Đã xóa] = 0
           AND sh2.[Ngày stock] = (
               SELECT MAX(sh3.[Ngày stock]) FROM StockHomNay sh3
               WHERE sh3.[ID sản phẩm] = sh2.[ID sản phẩm] AND sh3.[Đã xóa] = 0
           )
+        GROUP BY sh2.[ID sản phẩm]
     )"""
 
     conn   = db.connect_db()
@@ -205,6 +206,8 @@ def calculate_plan():
             ma_plans  = set()
             for row in manual_plans:
                 id_sp, code, ten, sl, gc, ma, stock = row
+                sl = float(sl or 0)
+                stock = float(stock or 0)
                 danh_sach.append({
                     'id_sanpham': id_sp, 'code': code, 'ten': ten,
                     'so_luong': sl, 'stock': stock, 'doh': 999,
@@ -236,10 +239,12 @@ def calculate_plan():
                       FROM DatHang WHERE [Loại đặt hàng] = 'Forecast tuần' AND [Đã xóa] = 0
                       GROUP BY [ID sản phẩm]) fc ON sp.ID = fc.[ID sản phẩm]
                 LEFT JOIN {SH_LATEST} sh ON sp.ID = sh.[ID sản phẩm]
-                WHERE sp.[Đã xóa] = 0 AND sp.[Kích cỡ đóng bao] = 50
+                WHERE sp.[Đã xóa] = 0 AND sp.[Kích cỡ đóng bao] = '50'
             """)
             for row in cursor.fetchall():
                 id_sp, code, ten, fc_tuan, stock = row
+                fc_tuan = float(fc_tuan or 0)
+                stock   = float(stock or 0)
                 sl     = fc_tuan / 5
                 fc_ngay = fc_tuan / 7
                 doh    = stock / fc_ngay if fc_ngay > 0 else 999
@@ -253,7 +258,7 @@ def calculate_plan():
         # Đơn Bá Cang
         cursor.execute(f"""
             SELECT dh.[ID sản phẩm], sp.[Code cám], sp.[Tên cám],
-                   SUM(dh.[Số lượng]) as tong, COALESCE(sh.[Số lượng], 0) as stock
+                   SUM(dh.[Số lượng]) as tong, MAX(COALESCE(sh.[Số lượng], 0)) as stock
             FROM DatHang dh
             JOIN SanPham sp ON dh.[ID sản phẩm] = sp.ID
             LEFT JOIN {SH_LATEST} sh ON sp.ID = sh.[ID sản phẩm]
@@ -264,6 +269,7 @@ def calculate_plan():
         """, (ngay_lay, ngay_lay_alt))
         for row in cursor.fetchall():
             id_sp, code, ten, sl, stock = row
+            sl = float(sl or 0); stock = float(stock or 0)
             danh_sach_uu_tien.append({
                 'id_sanpham': id_sp, 'code': code, 'ten': ten,
                 'so_luong': sl, 'stock': stock, 'doh': 0,
@@ -273,7 +279,7 @@ def calculate_plan():
         # Xe bồn Silo
         cursor.execute(f"""
             SELECT dh.[ID sản phẩm], sp.[Code cám], sp.[Tên cám],
-                   SUM(dh.[Số lượng]) as tong, COALESCE(sh.[Số lượng], 0) as stock
+                   SUM(dh.[Số lượng]) as tong, MAX(COALESCE(sh.[Số lượng], 0)) as stock
             FROM DatHang dh
             JOIN SanPham sp ON dh.[ID sản phẩm] = sp.ID
             LEFT JOIN {SH_LATEST} sh ON sp.ID = sh.[ID sản phẩm]
@@ -284,6 +290,7 @@ def calculate_plan():
         """, (ngay_lay, ngay_lay_alt))
         for row in cursor.fetchall():
             id_sp, code, ten, sl, stock = row
+            sl = float(sl or 0); stock = float(stock or 0)
             danh_sach_uu_tien.append({
                 'id_sanpham': id_sp, 'code': code, 'ten': ten,
                 'so_luong': sl, 'stock': stock, 'doh': 0,
@@ -304,6 +311,7 @@ def calculate_plan():
         """)
         for row in cursor.fetchall():
             id_sp, code, ten, stock, forecast = row
+            stock = float(stock or 0); forecast = float(forecast or 0)
             if forecast > 0:
                 fc_ngay = forecast / 7
                 doh = stock / fc_ngay if fc_ngay > 0 else 999

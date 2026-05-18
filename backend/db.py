@@ -104,12 +104,12 @@ def _translate_sql(sql):
 
     # Fix aggregate functions on TEXT columns - add ::numeric cast
     # SUM("column") → SUM("column"::numeric)
-    # AVG("column") → AVG("column"::numeric)
+    # SUM(alias."column") → SUM(alias."column"::numeric)
     # Only for SUM and AVG which require numeric input
     # MIN/MAX work on TEXT (lexicographic comparison) so don't cast them
     result = re.sub(
-        r'\b(SUM|AVG)\("([^"]+)"\)',
-        r'\1("\2"::numeric)',
+        r'\b(SUM|AVG)\((\w+\.)?"([^"]+)"\)',
+        lambda m: f'{m.group(1)}({m.group(2) or ""}"{m.group(3)}"::numeric)',
         result
     )
 
