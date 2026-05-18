@@ -171,7 +171,7 @@ def import_sanpham():
             'Tên cám': str,
             'Kích cỡ ép viên': str,
             'Dạng ép viên': str,
-            'Kích cỡ đóng bao': float,
+            'Kích cỡ đóng bao': str,
             'Pellet': str,
             'Packing': str,
             'Batch size': float,
