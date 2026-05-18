@@ -156,157 +156,177 @@ def calculate_plan():
     if not ngay:
         return jsonify({'success': False, 'message': 'Thiếu ngày'}), 400
 
-    ngay_dt = datetime.strptime(ngay, '%Y-%m-%d')
+    try:
+        ngay_dt = datetime.strptime(ngay, '%Y-%m-%d')
+    except Exception as e:
+        return jsonify({'success': False, 'message': f'Ngày không hợp lệ: {e}'}), 400
 
     # Skip Sunday
     if skip_sunday:
         while ngay_dt.weekday() == 6:
             ngay_dt += timedelta(days=1)
 
-    ngay_str = ngay_dt.strftime('%Y-%m-%d')
-    ngay_alt = ngay_dt.strftime('%d/%m/%Y')
-    ngay_lay = (ngay_dt + timedelta(days=1)).strftime('%Y-%m-%d')
+    ngay_str     = ngay_dt.strftime('%Y-%m-%d')
+    ngay_alt     = ngay_dt.strftime('%d/%m/%Y')
+    ngay_lay     = (ngay_dt + timedelta(days=1)).strftime('%Y-%m-%d')
     ngay_lay_alt = (ngay_dt + timedelta(days=1)).strftime('%d/%m/%Y')
 
-    conn = db.connect_db()
+    # Subquery: stock mới nhất cho mỗi SP (tránh nhiều rows khi JOIN StockHomNay)
+    SH_LATEST = """(
+        SELECT sh2.[ID sản phẩm], sh2.[Số lượng]
+        FROM StockHomNay sh2
+        WHERE sh2.[Đã xóa] = 0
+          AND sh2.[Ngày stock] = (
+              SELECT MAX(sh3.[Ngày stock]) FROM StockHomNay sh3
+              WHERE sh3.[ID sản phẩm] = sh2.[ID sản phẩm] AND sh3.[Đã xóa] = 0
+          )
+    )"""
+
+    conn   = db.connect_db()
     cursor = conn.cursor()
 
-    # Check manual plan first
-    cursor.execute("""
-        SELECT p.[ID sản phẩm], sp.[Code cám], sp.[Tên cám], p.[Số lượng],
-               p.[Ghi chú], p.[Mã plan], COALESCE(sh.[Số lượng], 0) as stock
-        FROM Plan p
-        JOIN SanPham sp ON p.[ID sản phẩm] = sp.ID
-        LEFT JOIN StockHomNay sh ON sp.ID = sh.[ID sản phẩm] AND sh.[Đã xóa] = 0
-        WHERE (p.[Ngày plan] = ? OR p.[Ngày plan] = ?) AND p.[Đã xóa] = 0
-        ORDER BY p.ID ASC
-    """, (ngay_str, ngay_alt))
+    try:
+        # Check manual plan first
+        cursor.execute(f"""
+            SELECT p.[ID sản phẩm], sp.[Code cám], sp.[Tên cám], p.[Số lượng],
+                   p.[Ghi chú], p.[Mã plan], COALESCE(sh.[Số lượng], 0) as stock
+            FROM Plan p
+            JOIN SanPham sp ON p.[ID sản phẩm] = sp.ID
+            LEFT JOIN {SH_LATEST} sh ON sp.ID = sh.[ID sản phẩm]
+            WHERE (p.[Ngày plan] = ? OR p.[Ngày plan] = ?) AND p.[Đã xóa] = 0
+            ORDER BY p.ID ASC
+        """, (ngay_str, ngay_alt))
 
-    manual_plans = cursor.fetchall()
+        manual_plans = cursor.fetchall()
 
-    if manual_plans:
-        danh_sach = []
-        tong = 0
-        ma_plans = set()
-        for row in manual_plans:
-            id_sp, code, ten, sl, gc, ma, stock = row
-            danh_sach.append({
-                'id_sanpham': id_sp, 'code': code, 'ten': ten,
-                'so_luong': sl, 'stock': stock, 'doh': 999,
-                'ghi_chu': gc or 'Kế hoạch thủ công', 'loai': 'Thủ công'
-            })
-            tong += sl
-            ma_plans.add(ma)
+        if manual_plans:
+            danh_sach = []
+            tong      = 0
+            ma_plans  = set()
+            for row in manual_plans:
+                id_sp, code, ten, sl, gc, ma, stock = row
+                danh_sach.append({
+                    'id_sanpham': id_sp, 'code': code, 'ten': ten,
+                    'so_luong': sl, 'stock': stock, 'doh': 999,
+                    'ghi_chu': gc or 'Kế hoạch thủ công', 'loai': 'Thủ công'
+                })
+                tong += sl
+                ma_plans.add(ma)
 
-        conn.close()
-        ty_le = round(tong / CONG_SUAT_TOI_DA * 100, 1)
-        return jsonify({
-            'success': True, 'loai': 'manual',
-            'ngay': ngay_str, 'ngay_display': ngay_dt.strftime('%d/%m/%Y'),
-            'danh_sach': danh_sach, 'tong': tong, 'ty_le': ty_le,
-            'so_sp': len(danh_sach), 'ma_plan': ', '.join(ma_plans)
-        })
-
-    # Auto calculate
-    danh_sach_uu_tien = []
-    ngay_thu = ngay_dt.weekday()
-
-    # Forecast tuần — bao 50kg
-    if ngay_thu < 5:
-        cursor.execute("""
-            SELECT sp.ID, sp.[Code cám], sp.[Tên cám], fc.[Số lượng],
-                   COALESCE(sh.[Số lượng], 0) as stock
-            FROM SanPham sp
-            JOIN (SELECT [ID sản phẩm], SUM([Số lượng]) as [Số lượng]
-                  FROM DatHang WHERE [Loại đặt hàng] = 'Forecast tuần' AND [Đã xóa] = 0
-                  GROUP BY [ID sản phẩm]) fc ON sp.ID = fc.[ID sản phẩm]
-            LEFT JOIN StockHomNay sh ON sp.ID = sh.[ID sản phẩm] AND sh.[Đã xóa] = 0
-            WHERE sp.[Đã xóa] = 0 AND sp.[Kích cỡ đóng bao] = 50
-        """)
-        for row in cursor.fetchall():
-            id_sp, code, ten, fc_tuan, stock = row
-            sl = fc_tuan / 5
-            fc_ngay = fc_tuan / 7
-            doh = stock / fc_ngay if fc_ngay > 0 else 999
-            gc = f"Bao 50kg - Chia đều 5 ngày (ngày {ngay_thu+1}/5)"
-            danh_sach_uu_tien.append({
-                'id_sanpham': id_sp, 'code': code, 'ten': ten,
-                'so_luong': sl, 'stock': stock, 'doh': round(doh, 1),
-                'ghi_chu': gc, 'uu_tien': 3, 'loai': 'Bao 50kg'
+            conn.close()
+            ty_le = round(tong / CONG_SUAT_TOI_DA * 100, 1)
+            return jsonify({
+                'success': True, 'loai': 'manual',
+                'ngay': ngay_str, 'ngay_display': ngay_dt.strftime('%d/%m/%Y'),
+                'danh_sach': danh_sach, 'tong': tong, 'ty_le': ty_le,
+                'so_sp': len(danh_sach), 'ma_plan': ', '.join(ma_plans)
             })
 
-    # Đơn Bá Cang
-    cursor.execute("""
-        SELECT dh.[ID sản phẩm], sp.[Code cám], sp.[Tên cám],
-               SUM(dh.[Số lượng]) as tong, COALESCE(sh.[Số lượng], 0) as stock
-        FROM DatHang dh
-        JOIN SanPham sp ON dh.[ID sản phẩm] = sp.ID
-        LEFT JOIN StockHomNay sh ON sp.ID = sh.[ID sản phẩm] AND sh.[Đã xóa] = 0
-        WHERE dh.[Loại đặt hàng] = 'Đại lý Bá Cang'
-        AND (dh.[Ngày lấy] = ? OR dh.[Ngày lấy] = ?)
-        AND dh.[Đã xóa] = 0
-        GROUP BY dh.[ID sản phẩm], sp.[Code cám], sp.[Tên cám]
-    """, (ngay_lay, ngay_lay_alt))
-    for row in cursor.fetchall():
-        id_sp, code, ten, sl, stock = row
-        danh_sach_uu_tien.append({
-            'id_sanpham': id_sp, 'code': code, 'ten': ten,
-            'so_luong': sl, 'stock': stock, 'doh': 0,
-            'ghi_chu': f'Đơn Bá Cang - Giao {ngay_lay}', 'uu_tien': 1, 'loai': 'Đơn hàng'
-        })
+        # Auto calculate
+        danh_sach_uu_tien = []
+        ngay_thu = ngay_dt.weekday()
 
-    # Xe bồn Silo
-    cursor.execute("""
-        SELECT dh.[ID sản phẩm], sp.[Code cám], sp.[Tên cám],
-               SUM(dh.[Số lượng]) as tong, COALESCE(sh.[Số lượng], 0) as stock
-        FROM DatHang dh
-        JOIN SanPham sp ON dh.[ID sản phẩm] = sp.ID
-        LEFT JOIN StockHomNay sh ON sp.ID = sh.[ID sản phẩm] AND sh.[Đã xóa] = 0
-        WHERE dh.[Loại đặt hàng] = 'Xe bồn Silo'
-        AND (dh.[Ngày lấy] = ? OR dh.[Ngày lấy] = ?)
-        AND dh.[Đã xóa] = 0
-        GROUP BY dh.[ID sản phẩm], sp.[Code cám], sp.[Tên cám]
-    """, (ngay_lay, ngay_lay_alt))
-    for row in cursor.fetchall():
-        id_sp, code, ten, sl, stock = row
-        danh_sach_uu_tien.append({
-            'id_sanpham': id_sp, 'code': code, 'ten': ten,
-            'so_luong': sl, 'stock': stock, 'doh': 0,
-            'ghi_chu': f'Xe Silo - Lấy {ngay_lay}', 'uu_tien': 1, 'loai': 'Đơn hàng'
-        })
-
-    # DoH < 3 từ Forecast
-    cursor.execute("""
-        SELECT sp.ID, sp.[Code cám], sp.[Tên cám],
-               COALESCE(sh.[Số lượng], 0) as stock,
-               COALESCE(fc.[Số lượng], 0) as forecast
-        FROM SanPham sp
-        LEFT JOIN StockHomNay sh ON sp.ID = sh.[ID sản phẩm] AND sh.[Đã xóa] = 0
-        LEFT JOIN (SELECT [ID sản phẩm], SUM([Số lượng]) as [Số lượng]
-                   FROM DatHang WHERE [Loại đặt hàng] = 'Forecast tuần' AND [Đã xóa] = 0
-                   GROUP BY [ID sản phẩm]) fc ON sp.ID = fc.[ID sản phẩm]
-        WHERE sp.[Đã xóa] = 0
-    """)
-    for row in cursor.fetchall():
-        id_sp, code, ten, stock, forecast = row
-        if forecast > 0:
-            fc_ngay = forecast / 7
-            doh = stock / fc_ngay if fc_ngay > 0 else 999
-            if doh < 3:
-                sl = forecast if forecast < 50000 else fc_ngay * 3
-                gc = f"DoH={doh:.1f}" + (" → Chạy 1 lần" if forecast < 50000 else " → SX 3 ngày")
+        # Forecast tuần — bao 50kg
+        if ngay_thu < 5:
+            cursor.execute(f"""
+                SELECT sp.ID, sp.[Code cám], sp.[Tên cám], fc.[Số lượng],
+                       COALESCE(sh.[Số lượng], 0) as stock
+                FROM SanPham sp
+                JOIN (SELECT [ID sản phẩm], SUM([Số lượng]) as [Số lượng]
+                      FROM DatHang WHERE [Loại đặt hàng] = 'Forecast tuần' AND [Đã xóa] = 0
+                      GROUP BY [ID sản phẩm]) fc ON sp.ID = fc.[ID sản phẩm]
+                LEFT JOIN {SH_LATEST} sh ON sp.ID = sh.[ID sản phẩm]
+                WHERE sp.[Đã xóa] = 0 AND sp.[Kích cỡ đóng bao] = 50
+            """)
+            for row in cursor.fetchall():
+                id_sp, code, ten, fc_tuan, stock = row
+                sl     = fc_tuan / 5
+                fc_ngay = fc_tuan / 7
+                doh    = stock / fc_ngay if fc_ngay > 0 else 999
+                gc     = f"Bao 50kg - Chia đều 5 ngày (ngày {ngay_thu+1}/5)"
                 danh_sach_uu_tien.append({
                     'id_sanpham': id_sp, 'code': code, 'ten': ten,
                     'so_luong': sl, 'stock': stock, 'doh': round(doh, 1),
-                    'ghi_chu': gc, 'uu_tien': 2, 'loai': 'Forecast'
+                    'ghi_chu': gc, 'uu_tien': 3, 'loai': 'Bao 50kg'
                 })
 
-    conn.close()
+        # Đơn Bá Cang
+        cursor.execute(f"""
+            SELECT dh.[ID sản phẩm], sp.[Code cám], sp.[Tên cám],
+                   SUM(dh.[Số lượng]) as tong, COALESCE(sh.[Số lượng], 0) as stock
+            FROM DatHang dh
+            JOIN SanPham sp ON dh.[ID sản phẩm] = sp.ID
+            LEFT JOIN {SH_LATEST} sh ON sp.ID = sh.[ID sản phẩm]
+            WHERE dh.[Loại đặt hàng] = 'Đại lý Bá Cang'
+            AND (dh.[Ngày lấy] = ? OR dh.[Ngày lấy] = ?)
+            AND dh.[Đã xóa] = 0
+            GROUP BY dh.[ID sản phẩm], sp.[Code cám], sp.[Tên cám]
+        """, (ngay_lay, ngay_lay_alt))
+        for row in cursor.fetchall():
+            id_sp, code, ten, sl, stock = row
+            danh_sach_uu_tien.append({
+                'id_sanpham': id_sp, 'code': code, 'ten': ten,
+                'so_luong': sl, 'stock': stock, 'doh': 0,
+                'ghi_chu': f'Đơn Bá Cang - Giao {ngay_lay}', 'uu_tien': 1, 'loai': 'Đơn hàng'
+            })
+
+        # Xe bồn Silo
+        cursor.execute(f"""
+            SELECT dh.[ID sản phẩm], sp.[Code cám], sp.[Tên cám],
+                   SUM(dh.[Số lượng]) as tong, COALESCE(sh.[Số lượng], 0) as stock
+            FROM DatHang dh
+            JOIN SanPham sp ON dh.[ID sản phẩm] = sp.ID
+            LEFT JOIN {SH_LATEST} sh ON sp.ID = sh.[ID sản phẩm]
+            WHERE dh.[Loại đặt hàng] = 'Xe bồn Silo'
+            AND (dh.[Ngày lấy] = ? OR dh.[Ngày lấy] = ?)
+            AND dh.[Đã xóa] = 0
+            GROUP BY dh.[ID sản phẩm], sp.[Code cám], sp.[Tên cám]
+        """, (ngay_lay, ngay_lay_alt))
+        for row in cursor.fetchall():
+            id_sp, code, ten, sl, stock = row
+            danh_sach_uu_tien.append({
+                'id_sanpham': id_sp, 'code': code, 'ten': ten,
+                'so_luong': sl, 'stock': stock, 'doh': 0,
+                'ghi_chu': f'Xe Silo - Lấy {ngay_lay}', 'uu_tien': 1, 'loai': 'Đơn hàng'
+            })
+
+        # DoH < 3 từ Forecast
+        cursor.execute(f"""
+            SELECT sp.ID, sp.[Code cám], sp.[Tên cám],
+                   COALESCE(sh.[Số lượng], 0) as stock,
+                   COALESCE(fc.[Số lượng], 0) as forecast
+            FROM SanPham sp
+            LEFT JOIN {SH_LATEST} sh ON sp.ID = sh.[ID sản phẩm]
+            LEFT JOIN (SELECT [ID sản phẩm], SUM([Số lượng]) as [Số lượng]
+                       FROM DatHang WHERE [Loại đặt hàng] = 'Forecast tuần' AND [Đã xóa] = 0
+                       GROUP BY [ID sản phẩm]) fc ON sp.ID = fc.[ID sản phẩm]
+            WHERE sp.[Đã xóa] = 0
+        """)
+        for row in cursor.fetchall():
+            id_sp, code, ten, stock, forecast = row
+            if forecast > 0:
+                fc_ngay = forecast / 7
+                doh = stock / fc_ngay if fc_ngay > 0 else 999
+                if doh < 3:
+                    sl = forecast if forecast < 50000 else fc_ngay * 3
+                    gc = f"DoH={doh:.1f}" + (" → Chạy 1 lần" if forecast < 50000 else " → SX 3 ngày")
+                    danh_sach_uu_tien.append({
+                        'id_sanpham': id_sp, 'code': code, 'ten': ten,
+                        'so_luong': sl, 'stock': stock, 'doh': round(doh, 1),
+                        'ghi_chu': gc, 'uu_tien': 2, 'loai': 'Forecast'
+                    })
+
+        conn.close()
+
+    except Exception as e:
+        try: conn.close()
+        except: pass
+        return jsonify({'success': False, 'message': f'Lỗi tính toán: {str(e)}'}), 500
 
     # Sort and apply capacity limit
     danh_sach_uu_tien.sort(key=lambda x: (x['uu_tien'], x['doh'], -x['so_luong']))
     ke_hoach = []
-    tong = 0
+    tong     = 0
 
     for item in danh_sach_uu_tien:
         if len(ke_hoach) >= MAX_SAN_PHAM or tong >= CONG_SUAT_CHO_PHEP:
