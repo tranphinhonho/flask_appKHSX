@@ -113,6 +113,15 @@ def _translate_sql(sql):
         result
     )
 
+    # Fix COALESCE type mismatch: COALESCE("col", 0) → COALESCE("col"::numeric, 0)
+    # TEXT columns compared with integer literal 0 cause type error in PostgreSQL
+    # Only matches direct column access (not nested functions like SUM/AVG already handled)
+    result = re.sub(
+        r'COALESCE\("([^"]+)",\s*0\)',
+        r'COALESCE("\1"::numeric, 0)',
+        result
+    )
+
     # Fix strftime for PostgreSQL
     result = re.sub(
         r"strftime\('%d',\s*\"([^\"]+)\"\)",
