@@ -90,7 +90,7 @@ class ProductionImporter:
         
         _p = self._ph()
         cursor.execute(
-            f"SELECT ID FROM EmailImportLog WHERE TenFile = {_p}",
+            f'SELECT "ID" FROM "EmailImportLog" WHERE "TenFile" = {_p}',
             (filename,)
         )
         
@@ -115,8 +115,8 @@ class ProductionImporter:
         
         _p = self._ph()
         cursor.execute(f"""
-            INSERT INTO EmailImportLog 
-            (TenFile, NgayEmail, LoaiFile, SoLuongDong, NguoiImport)
+            INSERT INTO "EmailImportLog" 
+            ("TenFile", "NgayEmail", "LoaiFile", "SoLuongDong", "NguoiImport")
             VALUES ({_p}, {_p}, {_p}, {_p}, {_p})
         """, (filename, ngay_email, loai_file, so_luong, nguoi_import))
         
@@ -149,7 +149,7 @@ class ProductionImporter:
         print(f"🗑️ Đã xóa mềm {deleted_count} record Mixer cũ (ngày {ngay_san_xuat})")
         
         cursor.execute(f"""
-            DELETE FROM EmailImportLog WHERE TenFile = {_p}
+            DELETE FROM "EmailImportLog" WHERE "TenFile" = {_p}
         """, (filename,))
         
         conn.commit()
