@@ -1,0 +1,501 @@
+{
+    "566XS34": {
+        "SILO TRUCK": 58.800000000000004,
+        "HIGRO 25kg": 16.8
+    },
+    "301": {
+        "HIGRO 25kg": 235.2
+    },
+    "566FS25": {
+        "SILO TRUCK": 672.4,
+        "HIGRO 25kg": 1.4210854715202004e-14,
+        "WHITE 50kg": 50
+    },
+    "549": {
+        "HIGRO 25kg": 303.1,
+        "CP 25kg": 161.0,
+        "STAR 25kg": 527.1,
+        "WHITE 50kg": 42
+    },
+    "551PRO": {
+        "HIGRO 25kg": 166,
+        "SILO TRUCK": 26
+    },
+    "552": {
+        "HIGRO 25kg": 1427.35,
+        "CP 25kg": 161.75,
+        "NUVO 25kg": 2.5,
+        "STAR 25kg": 38.0,
+        "SILO TRUCK": 343.8
+    },
+    "552PRO": {
+        "HIGRO 25kg": 134.4
+    },
+    "566": {
+        "HIGRO 25kg": 1390.15,
+        "STAR 25kg": 277.25,
+        "SILO TRUCK": 181.8,
+        "CP 25kg": 107.25,
+        "NUVO 25kg": 0.75
+    },
+    "550PRO": {
+        "HIGRO 25kg": 432,
+        "SILO TRUCK": 40,
+        "WHITE 50kg": 42
+    },
+    "551X": {
+        "HIGRO 25kg": 48,
+        "SILO TRUCK": 16
+    },
+    "552M": {
+        "HIGRO 25kg": 697.2,
+        "HIGRO 40kg": 67.2
+    },
+    "552MX": {
+        "HIGRO 25kg": 109.20000000000002
+    },
+    "552E": {
+        "HIGRO 25kg": 84.00000000000001
+    },
+    "552S": {
+        "HIGRO 25kg": 3245.45,
+        "CP 25kg": 133.25,
+        "NUVO 25kg": 2.5,
+        "SILO TRUCK": 606.4,
+        "STAR 25kg": 182.0
+    },
+    "562P": {
+        "HIGRO 25kg": 110.40000000000003,
+        "SILO TRUCK": 40.8
+    },
+    "567S": {
+        "HIGRO 25kg": 1136.65,
+        "CP 25kg": 52.25,
+        "STAR 25kg": 109.5,
+        "SILO TRUCK": 70.8
+    },
+    "GT12B": {
+        "STAR 25kg": 42.0
+    },
+    "540F": {
+        "WHITE 50kg": 913.6,
+        "SILO TRUCK": 270.8
+    },
+    "548F": {
+        "WHITE 50kg": 170.8,
+        "SILO TRUCK": 134.4,
+        "HIGRO 25kg": 22.400000000000002
+    },
+    "550SFS31": {
+        "WHITE 50kg": 6024,
+        "SILO TRUCK": 16
+    },
+    "551FS31": {
+        "WHITE 50kg": 2042,
+        "SILO TRUCK": 142
+    },
+    "548": {
+        "HIGRO 25kg": 229.80000000000004,
+        "STAR 25kg": 97.0
+    },
+    "551GPFS13": {
+        "WHITE 50kg": 3664
+    },
+    "552F": {
+        "WHITE 50kg": 5330.8,
+        "SILO TRUCK": 3002
+    },
+    "552FS90": {
+        "WHITE 50kg": 4742.4,
+        "SILO TRUCK": 3204
+    },
+    "552SFS90": {
+        "WHITE 50kg": 4428.400000000001,
+        "SILO TRUCK": 5952,
+        "HIGRO 25kg": 8
+    },
+    "562PFS90": {
+        "WHITE 50kg": 831.6,
+        "HIGRO 25kg": 7.105427357601002e-15
+    },
+    "566FS31": {
+        "WHITE 50kg": 452,
+        "SILO TRUCK": 1471.6,
+        "HIGRO 25kg": 1.4210854715202004e-14
+    },
+    "567SFS31": {
+        "WHITE 50kg": 644.6,
+        "SILO TRUCK": 1964.2,
+        "HIGRO 25kg": 1.4210854715202004e-14
+    },
+    "550SX": {
+        "HIGRO 25kg": 57.1,
+        "SILO TRUCK": 80.9,
+        "WHITE 50kg": 6
+    },
+    "510NFP92": {
+        "WHITE 50kg": 462.0
+    },
+    "511ANFP92": {
+        "WHITE 50kg": 663.6000000000001,
+        "HIGRO 25kg": 53.20000000000001,
+        "SILO TRUCK": 14
+    },
+    "567SFS25": {
+        "SILO TRUCK": 990.4,
+        "WHITE 50kg": 170,
+        "HIGRO 25kg": 32.400000000000006
+    },
+    "551": {
+        "HIGRO 25kg": 549.0,
+        "STAR 25kg": 92.75,
+        "NUVO 25kg": 0.5,
+        "SILO TRUCK": 295.25,
+        "CP 25kg": 43.0
+    },
+    "511B": {
+        "HIGRO 25kg": 2242.8
+    },
+    "511L": {
+        "HIGRO 25kg": 84.00000000000001
+    },
+    "550S": {
+        "HIGRO 25kg": 82.0,
+        "SILO TRUCK": 376.5,
+        "WHITE 50kg": 5.5
+    },
+    "552SPRO": {
+        "HIGRO 25kg": 327.6
+    },
+    "511NFP35": {
+        "WHITE 50kg": 856.8
+    },
+    "6952": {
+        "NASA 25kg": 134.4
+    },
+    "550SF": {
+        "WHITE 50kg": 2040,
+        "SILO TRUCK": 48
+    },
+    "550SFS25": {
+        "WHITE 50kg": 1200
+    },
+    "551GPFS31": {
+        "WHITE 50kg": 1207,
+        "SILO TRUCK": 113
+    },
+    "551FS54": {
+        "WHITE 50kg": 3352,
+        "SILO TRUCK": 192
+    },
+    "524": {
+        "HIGRO 25kg": 914.8,
+        "STAR 25kg": 521.6,
+        "HIGRO 40kg": 42
+    },
+    "522": {
+        "HIGRO 25kg": 16.8
+    },
+    "GT12": {
+        "SILO TRUCK": 148.4,
+        "HIGRO 25kg": 11.200000000000003
+    },
+    "562PXS34": {
+        "SILO TRUCK": 16.8
+    },
+    "384": {
+        "HIGRO 25kg": 379.55,
+        "CP 25kg": 82.45
+    },
+    "BS07TA": {
+        "SILO TRUCK": 308.4000000000001,
+        "HIGRO 25kg": 16.8
+    },
+    "544": {
+        "HIGRO 25kg": 172.20000000000002,
+        "CP 25kg": 21
+    },
+    "502": {
+        "HIGRO 25kg": 121.2,
+        "SILO TRUCK": 172.8
+    },
+    "551XS72": {
+        "SILO TRUCK": 80
+    },
+    "567SXS34": {
+        "SILO TRUCK": 25.200000000000003
+    },
+    "510": {
+        "HIGRO 25kg": 1134.0000000000002
+    },
+    "511AS": {
+        "HIGRO 25kg": 209.99999999999997
+    },
+    "567": {
+        "HIGRO 25kg": 340.5,
+        "CP 25kg": 24.75,
+        "STAR 25kg": 12.0,
+        "NUVO 25kg": 0.75
+    },
+    "GT11C": {
+        "STAR 25kg": 184.79999999999998,
+        "HIGRO 25kg": 7.105427357601002e-15
+    },
+    "513F": {
+        "WHITE 50kg": 2553.6,
+        "HIGRO 25kg": 75.60000000000001
+    },
+    "551GPFS54": {
+        "WHITE 50kg": 766,
+        "SILO TRUCK": 361
+    },
+    "6953": {
+        "NASA 25kg": 67.2
+    },
+    "6895": {
+        "NASA 25kg": 117.6,
+        "HIGRO 25kg": 8.4
+    },
+    "551GPX": {
+        "HIGRO 25kg": 96
+    },
+    "584": {
+        "HIGRO 25kg": 56.15,
+        "CP 25kg": 11.05
+    },
+    "594": {
+        "HIGRO 25kg": 117.60000000000001
+    },
+    "595": {
+        "HIGRO 25kg": 478.8
+    },
+    "510M": {
+        "HIGRO 25kg": 125.99999999999999
+    },
+    "553S": {
+        "HIGRO 25kg": 586.8,
+        "SILO TRUCK": 222.80000000000004,
+        "CP 25kg": 16.5,
+        "STAR 25kg": 5.5
+    },
+    "6951": {
+        "NASA 25kg": 142.0,
+        "HIGRO 25kg": 16.8
+    },
+    "302": {
+        "HIGRO 25kg": 252.0
+    },
+    "551GP": {
+        "HIGRO 25kg": 112.175,
+        "STAR 25kg": 33.825,
+        "SILO TRUCK": 30
+    },
+    "511NF": {
+        "HIGRO 25kg": 126,
+        "WHITE 50kg": 529.2
+    },
+    "552SF": {
+        "WHITE 50kg": 4417.6,
+        "SILO TRUCK": 6172.4
+    },
+    "551GPFS25": {
+        "WHITE 50kg": 136
+    },
+    "549F": {
+        "WHITE 50kg": 641.0,
+        "SILO TRUCK": 288.6,
+        "HIGRO 25kg": 2.8000000000000007
+    },
+    "553": {
+        "HIGRO 25kg": 489.0,
+        "CP 25kg": 105.85,
+        "SILO TRUCK": 2,
+        "STAR 25kg": 66.75
+    },
+    "562F": {
+        "WHITE 50kg": 16.8
+    },
+    "511M": {
+        "HIGRO 25kg": 294.0
+    },
+    "553MF": {
+        "WHITE 50kg": 3021.2,
+        "SILO TRUCK": 344.4,
+        "HIGRO 25kg": 263.2
+    },
+    "GT11S": {
+        "STAR 25kg": 126.0,
+        "HIGRO 25kg": 36.400000000000006,
+        "SILO TRUCK": 47.6
+    },
+    "510S": {
+        "HIGRO 25kg": 109.20000000000002
+    },
+    "6949": {
+        "NASA 25kg": 42.0
+    },
+    "BS09TA": {
+        "SILO TRUCK": 117.2
+    },
+    "385S": {
+        "HIGRO 25kg": 59.699999999999996,
+        "CP 25kg": 24.3,
+        "WHITE 50kg": 8.4
+    },
+    "GT12AS": {
+        "STAR 25kg": 50.400000000000006,
+        "HIGRO 25kg": 16.8,
+        "SILO TRUCK": 218.4
+    },
+    "524AP": {
+        "SILO TRUCK": 386.4000000000001
+    },
+    "567SF": {
+        "SILO TRUCK": 2194.8,
+        "WHITE 50kg": 535.2
+    },
+    "991-18": {
+        "CP 25kg": 31.200000000000003
+    },
+    "6995": {
+        "NASA 25kg": 117.6
+    },
+    "562PF": {
+        "WHITE 50kg": 1058.4
+    },
+    "566F": {
+        "SILO TRUCK": 1782.8,
+        "WHITE 50kg": 560
+    },
+    "BS07LD": {
+        "SILO TRUCK": 50.2
+    },
+    "GT12A": {
+        "STAR 25kg": 16.8,
+        "SILO TRUCK": 16.8
+    },
+    "BS06LD": {
+        "WHITE 40kg": 16.6,
+        "STAR 25kg": 12.4
+    },
+    "BS10LD": {
+        "WHITE 40kg": 8.4,
+        "STAR 25kg": 4
+    },
+    "562": {
+        "HIGRO 25kg": 325.19999999999993,
+        "WHITE 50kg": 2.4000000000000057
+    },
+    "6991": {
+        "NASA 25kg": 33.6
+    },
+    "551FS25": {
+        "WHITE 50kg": 216
+    },
+    "6924": {
+        "NASA 25kg": 67.2
+    },
+    "BS04A": {
+        "STAR 25kg": 142.8,
+        "HIGRO 25kg": 16.8
+    },
+    "BS04": {
+        "STAR 25kg": 92.40000000000002
+    },
+    "567SXS74": {
+        "SILO TRUCK": 8.4
+    },
+    "552SXS93": {
+        "HIGRO 25kg": 176.40000000000003
+    },
+    "550XS52PRO": {
+        "WHITE 50kg": 4,
+        "SILO TRUCK": 4
+    },
+    "BS06TA": {
+        "NASA 40kg": 16.8,
+        "STAR 25kg": 16
+    },
+    "552FS13": {
+        "WHITE 50kg": 814.8,
+        "HIGRO 25kg": 2.842170943040401e-14
+    },
+    "552SX": {
+        "HIGRO 25kg": 268.80000000000007
+    },
+    "GT12BSP": {
+        "STAR 25kg": 16.8
+    },
+    "6884": {
+        "NASA 25kg": 16.8
+    },
+    "6951XS46": {
+        "NASA 25kg": 8.4
+    },
+    "BS10TA": {
+        "STAR 25kg": 16,
+        "WHITE 40kg": 29.6
+    },
+    "552SXS13": {
+        "SILO TRUCK": 42.0
+    },
+    "552SXS54": {
+        "SILO TRUCK": 33.6,
+        "HIGRO 25kg": 16.8
+    },
+    "511S": {
+        "HIGRO 25kg": 75.6
+    },
+    "511": {
+        "HIGRO 25kg": 25.200000000000003
+    },
+    "552SXS88": {
+        "HIGRO 25kg": 160.4,
+        "SILO TRUCK": 49.6
+    },
+    "566XS13": {
+        "SILO TRUCK": 16.8
+    },
+    "550XS54PRO": {
+        "SILO TRUCK": 8
+    },
+    "GT12BS": {
+        "STAR 25kg": 25.200000000000003
+    },
+    "553SPRO": {
+        "HIGRO 25kg": 8.4
+    },
+    "552WDF": {
+        "SILO TRUCK": 134.4
+    },
+    "352": {
+        "HIGRO 25kg": 16.8
+    },
+    "521": {
+        "HIGRO 25kg": 8.4
+    },
+    "524AP30": {
+        "SILO TRUCK": 100.8
+    },
+    "BS07LD(5.1)": {
+        "SILO TRUCK": 20.4
+    },
+    "GT12S": {
+        "STAR 25kg": 25.200000000000003
+    },
+    "540": {
+        "HIGRO 25kg": 92.4
+    },
+    "524A": {
+        "SILO TRUCK": 117.6
+    },
+    "GT11": {
+        "STAR 25kg": 8.4
+    },
+    "6951XS52": {
+        "NASA 25kg": 8.4
+    },
+    "BS06TA6.1": {
+        "WHITE 40kg": 12
+    }
+}

@@ -15,7 +15,7 @@ DATABASE_URL = os.environ.get('DATABASE_URL')
 if DATABASE_URL:
     DATABASE_PATH = DATABASE_URL
 else:
-    DATABASE_PATH = os.path.join(PROJECT_DIR, 'database_new.db')
+    DATABASE_PATH = os.path.join(BASE_DIR, 'database_new.db')
 
 # ============ Flask ============
 SECRET_KEY = os.environ.get('SECRET_KEY', 'b7khsx-flask-secret-key-2026')

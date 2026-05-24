@@ -616,8 +616,9 @@ class ForecastImporter:
     
     def _get_existing_orders(self, cursor, product_id: int, date_start: str, date_end: str) -> float:
         _p = self._ph()
+        qty_col = f"CAST({self._q('Số lượng')} AS NUMERIC)" if self._is_pg else self._q('Số lượng')
         cursor.execute(f"""
-            SELECT COALESCE(SUM({self._q('Số lượng')}::integer), 0)
+            SELECT COALESCE(SUM({qty_col}), 0)
             FROM {self._q('DatHang')}
             WHERE {self._q('ID sản phẩm')} = {_p}
             AND {self._q('Ngày lấy')} BETWEEN {_p} AND {_p}

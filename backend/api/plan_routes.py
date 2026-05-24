@@ -12,9 +12,10 @@ import os, tempfile
 
 plan_bp = Blueprint('plan', __name__)
 
-CONG_SUAT_TOI_DA = 2100000
+CONG_SUAT_TOI_DA = 2500000  # Max: 2500 Tons
+CONG_SUAT_TOI_THIEU = 2100000  # Min: 2100 Tons
 CONG_SUAT_CHO_PHEP = CONG_SUAT_TOI_DA * 1.05
-MAX_SAN_PHAM = 25
+MAX_SAN_PHAM = 35  # Max products updated to 35 to fit 35-item output
 
 
 @plan_bp.route('/api/plan/latest-date', methods=['GET'])
@@ -107,7 +108,8 @@ def get_plan_stats():
     return jsonify({
         'success': True, 'so_sp': so_sp, 'so_dong': so_dong,
         'tong': tong, 'ty_le': round(ty_le, 1),
-        'cong_suat': CONG_SUAT_TOI_DA
+        'cong_suat': CONG_SUAT_TOI_DA,
+        'cong_suat_min': CONG_SUAT_TOI_THIEU
     })
 
 
@@ -152,6 +154,7 @@ def calculate_plan():
     data = request.get_json()
     ngay = data.get('ngay')
     skip_sunday = data.get('skip_sunday', True)
+    only_saved = data.get('only_saved', False)
 
     if not ngay:
         return jsonify({'success': False, 'message': 'Thiếu ngày'}), 400
@@ -171,17 +174,39 @@ def calculate_plan():
     ngay_lay     = (ngay_dt + timedelta(days=1)).strftime('%Y-%m-%d')
     ngay_lay_alt = (ngay_dt + timedelta(days=1)).strftime('%d/%m/%Y')
 
-    # Subquery: stock mới nhất cho mỗi SP (tránh nhiều rows khi JOIN StockHomNay)
-    SH_LATEST = """(
-        SELECT sh2.[ID sản phẩm], MAX(sh2.[Số lượng]) as [Số lượng]
-        FROM StockHomNay sh2
-        WHERE sh2.[Đã xóa] = 0
-          AND sh2.[Ngày stock] = (
-              SELECT MAX(sh3.[Ngày stock]) FROM StockHomNay sh3
-              WHERE sh3.[ID sản phẩm] = sh2.[ID sản phẩm] AND sh3.[Đã xóa] = 0
-          )
-        GROUP BY sh2.[ID sản phẩm]
-    )"""
+    # Check if StockHomNay has data, fallback to StockOld (where FFStock is loaded)
+    conn = db.connect_db()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(db.sql("SELECT COUNT(*) FROM [StockHomNay] WHERE [Đã xóa] = 0"))
+        has_today_stock = cursor.fetchone()[0] > 0
+    except Exception:
+        has_today_stock = False
+    finally:
+        conn.close()
+
+    if has_today_stock:
+        SH_LATEST = """(
+            SELECT sh2.[ID sản phẩm], MAX(sh2.[Số lượng]) as [Số lượng]
+            FROM StockHomNay sh2
+            WHERE sh2.[Đã xóa] = 0
+              AND sh2.[Ngày stock] = (
+                  SELECT MAX(sh3.[Ngày stock]) FROM StockHomNay sh3
+                  WHERE sh3.[ID sản phẩm] = sh2.[ID sản phẩm] AND sh3.[Đã xóa] = 0
+              )
+            GROUP BY sh2.[ID sản phẩm]
+        )"""
+    else:
+        SH_LATEST = """(
+            SELECT so2.[ID sản phẩm], MAX(so2.[Số lượng]) as [Số lượng]
+            FROM StockOld so2
+            WHERE so2.[Đã xóa] = 0
+              AND so2.[Ngày stock old] = (
+                  SELECT MAX(so3.[Ngày stock old]) FROM StockOld so3
+                  WHERE so3.[ID sản phẩm] = so2.[ID sản phẩm] AND so3.[Đã xóa] = 0
+              )
+            GROUP BY so2.[ID sản phẩm]
+        )"""
 
     conn   = db.connect_db()
     cursor = conn.cursor()
@@ -219,146 +244,100 @@ def calculate_plan():
             conn.close()
             ty_le = round(tong / CONG_SUAT_TOI_DA * 100, 1)
             return jsonify({
-                'success': True, 'loai': 'manual',
+                'success': True, 'loai': 'manual', 'has_saved': True,
                 'ngay': ngay_str, 'ngay_display': ngay_dt.strftime('%d/%m/%Y'),
                 'danh_sach': danh_sach, 'tong': tong, 'ty_le': ty_le,
                 'so_sp': len(danh_sach), 'ma_plan': ', '.join(ma_plans)
             })
 
-        # Auto calculate
-        danh_sach_uu_tien = []
-        ngay_thu = ngay_dt.weekday()
+        if only_saved:
+            conn.close()
+            return jsonify({
+                'success': False,
+                'has_saved': False,
+                'message': 'Chưa có kế hoạch được lưu cho ngày này. Vui lòng bấm nút "Tính toán" màu đỏ để tạo kế hoạch tự động.'
+            })
 
-        # Forecast tuần — bao 50kg
-        if ngay_thu < 5:
-            cursor.execute(f"""
-                SELECT sp.ID, sp.[Code cám], sp.[Tên cám], fc.[Số lượng],
-                       COALESCE(sh.[Số lượng], 0) as stock
-                FROM SanPham sp
-                JOIN (SELECT [ID sản phẩm], SUM([Số lượng]) as [Số lượng]
-                      FROM DatHang WHERE [Loại đặt hàng] = 'Forecast tuần' AND [Đã xóa] = 0
-                      GROUP BY [ID sản phẩm]) fc ON sp.ID = fc.[ID sản phẩm]
-                LEFT JOIN {SH_LATEST} sh ON sp.ID = sh.[ID sản phẩm]
-                WHERE sp.[Đã xóa] = 0 AND sp.[Kích cỡ đóng bao] = '50'
-            """)
-            for row in cursor.fetchall():
-                id_sp, code, ten, fc_tuan, stock = row
-                fc_tuan = float(fc_tuan or 0)
-                stock   = float(stock or 0)
-                sl     = fc_tuan / 5
-                fc_ngay = fc_tuan / 7
-                doh    = stock / fc_ngay if fc_ngay > 0 else 999
-                gc     = f"Bao 50kg - Chia đều 5 ngày (ngày {ngay_thu+1}/5)"
-                danh_sach_uu_tien.append({
-                    'id_sanpham': id_sp, 'code': code, 'ten': ten,
-                    'so_luong': sl, 'stock': stock, 'doh': round(doh, 1),
-                    'ghi_chu': gc, 'uu_tien': 3, 'loai': 'Bao 50kg'
+        # Auto calculate - Run original Excel-to-Web algorithm via khsx_json.py subprocess
+        import subprocess
+        import json
+        import sys
+        
+        python_exe = sys.executable
+        backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        script_path = os.path.join(backend_dir, "algorithm", "khsx_json.py")
+        
+        try:
+            res = subprocess.run([python_exe, script_path, ngay_str], 
+                                 capture_output=True, text=True, encoding='utf-8', errors='replace')
+            stdout_str = res.stdout
+            
+            if "---JSON_START---" in stdout_str:
+                json_part = stdout_str.split("---JSON_START---")[-1].strip()
+                res_data = json.loads(json_part)
+                
+                if not res_data.get('success'):
+                    conn.close()
+                    return jsonify({'success': False, 'message': res_data.get('message', 'Lỗi tính toán')}), 400
+                
+                raw_danh_sach = res_data.get('danh_sach', [])
+                
+                # Fetch product mapping from DB
+                cursor.execute("SELECT ID, [Code cám], [Tên cám] FROM SanPham WHERE [Đã xóa] = 0")
+                products_db = cursor.fetchall()
+                prod_map = {}
+                for pid, code, name in products_db:
+                    if code:
+                        prod_map[str(code).strip().upper()] = pid
+                    if name:
+                        prod_map[str(name).strip().upper()] = pid
+                        
+                # Map codes to ID sản phẩm
+                ke_hoach = []
+                tong = 0
+                for item in raw_danh_sach:
+                    code_upper = str(item['code']).strip().upper()
+                    pid = prod_map.get(code_upper)
+                    if not pid:
+                        # Fallback prefix/suffix matching
+                        for c, p_id in prod_map.items():
+                            if c.startswith(code_upper) or code_upper.startswith(c):
+                                pid = p_id
+                                break
+                                
+                    if pid:
+                        item['id_sanpham'] = pid
+                        ke_hoach.append(item)
+                        tong += item['so_luong']
+                    else:
+                        item['id_sanpham'] = None
+                        ke_hoach.append(item)
+                        tong += item['so_luong']
+                        
+                conn.close()
+                
+                ty_le = round(tong / CONG_SUAT_TOI_DA * 100, 1)
+                return jsonify({
+                    'success': True,
+                    'loai': 'auto',
+                    'ngay': ngay_str,
+                    'ngay_display': ngay_dt.strftime('%d/%m/%Y'),
+                    'danh_sach': ke_hoach,
+                    'tong': tong,
+                    'ty_le': ty_le,
+                    'so_sp': len(ke_hoach),
+                    'warnings': res_data.get('warnings', [])
                 })
-
-        # Đơn Bá Cang
-        cursor.execute(f"""
-            SELECT dh.[ID sản phẩm], sp.[Code cám], sp.[Tên cám],
-                   SUM(dh.[Số lượng]) as tong, MAX(COALESCE(sh.[Số lượng], 0)) as stock
-            FROM DatHang dh
-            JOIN SanPham sp ON dh.[ID sản phẩm] = sp.ID
-            LEFT JOIN {SH_LATEST} sh ON sp.ID = sh.[ID sản phẩm]
-            WHERE dh.[Loại đặt hàng] = 'Đại lý Bá Cang'
-            AND (dh.[Ngày lấy] = ? OR dh.[Ngày lấy] = ?)
-            AND dh.[Đã xóa] = 0
-            GROUP BY dh.[ID sản phẩm], sp.[Code cám], sp.[Tên cám]
-        """, (ngay_lay, ngay_lay_alt))
-        for row in cursor.fetchall():
-            id_sp, code, ten, sl, stock = row
-            sl = float(sl or 0); stock = float(stock or 0)
-            danh_sach_uu_tien.append({
-                'id_sanpham': id_sp, 'code': code, 'ten': ten,
-                'so_luong': sl, 'stock': stock, 'doh': 0,
-                'ghi_chu': f'Đơn Bá Cang - Giao {ngay_lay}', 'uu_tien': 1, 'loai': 'Đơn hàng'
-            })
-
-        # Xe bồn Silo
-        cursor.execute(f"""
-            SELECT dh.[ID sản phẩm], sp.[Code cám], sp.[Tên cám],
-                   SUM(dh.[Số lượng]) as tong, MAX(COALESCE(sh.[Số lượng], 0)) as stock
-            FROM DatHang dh
-            JOIN SanPham sp ON dh.[ID sản phẩm] = sp.ID
-            LEFT JOIN {SH_LATEST} sh ON sp.ID = sh.[ID sản phẩm]
-            WHERE dh.[Loại đặt hàng] = 'Xe bồn Silo'
-            AND (dh.[Ngày lấy] = ? OR dh.[Ngày lấy] = ?)
-            AND dh.[Đã xóa] = 0
-            GROUP BY dh.[ID sản phẩm], sp.[Code cám], sp.[Tên cám]
-        """, (ngay_lay, ngay_lay_alt))
-        for row in cursor.fetchall():
-            id_sp, code, ten, sl, stock = row
-            sl = float(sl or 0); stock = float(stock or 0)
-            danh_sach_uu_tien.append({
-                'id_sanpham': id_sp, 'code': code, 'ten': ten,
-                'so_luong': sl, 'stock': stock, 'doh': 0,
-                'ghi_chu': f'Xe Silo - Lấy {ngay_lay}', 'uu_tien': 1, 'loai': 'Đơn hàng'
-            })
-
-        # DoH < 3 từ Forecast
-        cursor.execute(f"""
-            SELECT sp.ID, sp.[Code cám], sp.[Tên cám],
-                   COALESCE(sh.[Số lượng], 0) as stock,
-                   COALESCE(fc.[Số lượng], 0) as forecast
-            FROM SanPham sp
-            LEFT JOIN {SH_LATEST} sh ON sp.ID = sh.[ID sản phẩm]
-            LEFT JOIN (SELECT [ID sản phẩm], SUM([Số lượng]) as [Số lượng]
-                       FROM DatHang WHERE [Loại đặt hàng] = 'Forecast tuần' AND [Đã xóa] = 0
-                       GROUP BY [ID sản phẩm]) fc ON sp.ID = fc.[ID sản phẩm]
-            WHERE sp.[Đã xóa] = 0
-        """)
-        for row in cursor.fetchall():
-            id_sp, code, ten, stock, forecast = row
-            stock = float(stock or 0); forecast = float(forecast or 0)
-            if forecast > 0:
-                fc_ngay = forecast / 7
-                doh = stock / fc_ngay if fc_ngay > 0 else 999
-                if doh < 3:
-                    sl = forecast if forecast < 50000 else fc_ngay * 3
-                    gc = f"DoH={doh:.1f}" + (" → Chạy 1 lần" if forecast < 50000 else " → SX 3 ngày")
-                    danh_sach_uu_tien.append({
-                        'id_sanpham': id_sp, 'code': code, 'ten': ten,
-                        'so_luong': sl, 'stock': stock, 'doh': round(doh, 1),
-                        'ghi_chu': gc, 'uu_tien': 2, 'loai': 'Forecast'
-                    })
-
-        conn.close()
-
+            else:
+                conn.close()
+                return jsonify({'success': False, 'message': f'Subprocess didn\'t print expected delimiter. Stdout: {stdout_str[:500]}'}), 500
+        except Exception as ex:
+            conn.close()
+            return jsonify({'success': False, 'message': f'Lỗi gọi subprocess thuật toán: {ex}'}), 500
     except Exception as e:
         try: conn.close()
         except: pass
         return jsonify({'success': False, 'message': f'Lỗi tính toán: {str(e)}'}), 500
-
-    # Sort and apply capacity limit
-    danh_sach_uu_tien.sort(key=lambda x: (x['uu_tien'], x['doh'], -x['so_luong']))
-    ke_hoach = []
-    tong     = 0
-
-    for item in danh_sach_uu_tien:
-        if len(ke_hoach) >= MAX_SAN_PHAM or tong >= CONG_SUAT_CHO_PHEP:
-            break
-        sl = item['so_luong']
-        if tong + sl > CONG_SUAT_CHO_PHEP:
-            sl = CONG_SUAT_CHO_PHEP - tong
-            if sl < 1000:
-                break
-            item['ghi_chu'] += f" (Điều chỉnh: {item['so_luong']:,.0f} → {sl:,.0f})"
-            item['so_luong'] = sl
-        ke_hoach.append(item)
-        tong += sl
-
-    if not ke_hoach:
-        return jsonify({'success': False, 'message': 'Không có dữ liệu để lên kế hoạch'})
-
-    ty_le = round(tong / CONG_SUAT_TOI_DA * 100, 1)
-    return jsonify({
-        'success': True, 'loai': 'auto',
-        'ngay': ngay_str, 'ngay_display': ngay_dt.strftime('%d/%m/%Y'),
-        'danh_sach': ke_hoach, 'tong': tong, 'ty_le': ty_le,
-        'so_sp': len(ke_hoach)
-    })
 
 
 @plan_bp.route('/api/plan/save-calculated', methods=['POST'])

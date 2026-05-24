@@ -72,74 +72,8 @@ function showToast(message, type = 'info', duration = 3000) {
 }
 
 // ==================== Sidebar Menu ====================
-async function loadSidebarMenu() {
-    const menuContainer = document.getElementById('sidebar-menu');
-    if (!menuContainer) return;
-
-    try {
-        const data = await api.get('/api/menu');
-        if (!data || !data.menu) return;
-
-        menuContainer.innerHTML = '';
-
-        data.menu.forEach((group, idx) => {
-            const groupDiv = document.createElement('div');
-            groupDiv.className = 'menu-group';
-
-            // Nếu chỉ có 1 sub function, click trực tiếp
-            if (group.sub_functions.length === 1) {
-                const sub = group.sub_functions[0];
-                const header = document.createElement('button');
-                header.className = 'menu-group-header';
-                header.innerHTML = `<i class="bi bi-${group.icon || 'circle'}"></i> ${group.name}`;
-                header.onclick = () => navigateToModule(sub.name, sub.module_path, header);
-                groupDiv.appendChild(header);
-            } else {
-                // Header có thể expand/collapse — mặc định xổ ra sẵn
-                const header = document.createElement('button');
-                header.className = 'menu-group-header expanded';
-                header.innerHTML = `<i class="bi bi-${group.icon || 'circle'}"></i> ${group.name} <i class="bi bi-chevron-right menu-arrow"></i>`;
-                header.onclick = () => {
-                    header.classList.toggle('expanded');
-                    const subItems = header.nextElementSibling;
-                    if (subItems) subItems.classList.toggle('show');
-                };
-                groupDiv.appendChild(header);
-
-                // Sub items — mặc định hiển thị (có class 'show')
-                const subContainer = document.createElement('div');
-                subContainer.className = 'menu-sub-items show';
-
-                group.sub_functions.forEach(sub => {
-                    const subBtn = document.createElement('button');
-                    subBtn.className = 'menu-sub-item';
-                    subBtn.textContent = sub.name;
-                    subBtn.onclick = () => navigateToModule(sub.name, sub.module_path, subBtn);
-                    subContainer.appendChild(subBtn);
-                });
-
-                groupDiv.appendChild(subContainer);
-            }
-
-            menuContainer.appendChild(groupDiv);
-        });
-    } catch (e) {
-        menuContainer.innerHTML = '<div class="menu-loading">Lỗi tải menu</div>';
-    }
-}
-
-function navigateToModule(name, modulePath, clickedEl) {
-    // Highlight active
-    document.querySelectorAll('.menu-group-header.active, .menu-sub-item.active').forEach(el => {
-        el.classList.remove('active');
-    });
-    clickedEl.classList.add('active');
-
-    // Update breadcrumb
-    const breadcrumb = document.getElementById('current-page-title');
-    if (breadcrumb) breadcrumb.textContent = name;
-
-    // Navigate based on module path
+function highlightActiveMenu() {
+    const currentPath = window.location.pathname;
     const moduleToPage = {
         'PagesKDE.SanPham': '/page/sanpham',
         'PagesKDE.DatHang': '/page/dathang',
@@ -156,18 +90,152 @@ function navigateToModule(name, modulePath, clickedEl) {
         'PagesKDE.StockHomNay': '/page/stockhomnay',
         'PagesKDE.LichThang': '/page/lichthang',
         'PagesKDE.GhiChu': '/page/ghichu',
-        // Admin pages
         'Admin.TaoBang': '/admin/tables',
         'Admin.Users': '/admin/users',
         'Admin.VaiTro': '/admin/roles',
         'Admin.Settings': '/admin/settings',
     };
 
+    let activeModule = null;
+    for (const [mod, path] of Object.entries(moduleToPage)) {
+        if (currentPath === path) {
+            activeModule = mod;
+            break;
+        }
+    }
+
+    if (!activeModule) return;
+
+    document.querySelectorAll('.menu-sub-item').forEach(btn => {
+        if (btn.getAttribute('data-module') === activeModule) {
+            btn.classList.add('active');
+            const subContainer = btn.closest('.menu-sub-items');
+            if (subContainer) {
+                subContainer.classList.add('show');
+                const header = subContainer.previousElementSibling;
+                if (header) header.classList.add('expanded');
+            }
+        }
+    });
+
+    document.querySelectorAll('.menu-group-header').forEach(btn => {
+        if (btn.getAttribute('data-module') === activeModule) {
+            btn.classList.add('active');
+        }
+    });
+}
+
+async function loadSidebarMenu() {
+    const menuContainer = document.getElementById('sidebar-menu');
+    if (!menuContainer) return;
+
+    const renderMenu = (menuData) => {
+        menuContainer.innerHTML = '';
+        menuData.forEach((group, idx) => {
+            const groupDiv = document.createElement('div');
+            groupDiv.className = 'menu-group';
+
+            if (group.sub_functions.length === 1) {
+                const sub = group.sub_functions[0];
+                const header = document.createElement('button');
+                header.className = 'menu-group-header';
+                header.innerHTML = `<i class="bi bi-${group.icon || 'circle'}"></i> ${group.name}`;
+                header.setAttribute('data-module', sub.module_path);
+                header.onclick = () => navigateToModule(sub.name, sub.module_path, header);
+                groupDiv.appendChild(header);
+            } else {
+                const header = document.createElement('button');
+                header.className = 'menu-group-header expanded';
+                header.innerHTML = `<i class="bi bi-${group.icon || 'circle'}"></i> ${group.name} <i class="bi bi-chevron-right menu-arrow"></i>`;
+                header.onclick = () => {
+                    header.classList.toggle('expanded');
+                    const subItems = header.nextElementSibling;
+                    if (subItems) subItems.classList.toggle('show');
+                };
+                groupDiv.appendChild(header);
+
+                const subContainer = document.createElement('div');
+                subContainer.className = 'menu-sub-items show';
+
+                group.sub_functions.forEach(sub => {
+                    const subBtn = document.createElement('button');
+                    subBtn.className = 'menu-sub-item';
+                    subBtn.textContent = sub.name;
+                    subBtn.setAttribute('data-module', sub.module_path);
+                    subBtn.onclick = () => navigateToModule(sub.name, sub.module_path, subBtn);
+                    subContainer.appendChild(subBtn);
+                });
+
+                groupDiv.appendChild(subContainer);
+            }
+            menuContainer.appendChild(groupDiv);
+        });
+        
+        highlightActiveMenu();
+    };
+
+    // 1. Try instant load from sessionStorage cache
+    const cachedMenu = sessionStorage.getItem('sidebar_menu');
+    if (cachedMenu) {
+        try {
+            const parsed = JSON.parse(cachedMenu);
+            renderMenu(parsed);
+        } catch (e) {
+            sessionStorage.removeItem('sidebar_menu');
+        }
+    }
+
+    // 2. Silently fetch from server to update cache and DOM if changed (Stale-While-Revalidate)
+    try {
+        const data = await api.get('/api/menu');
+        if (data && data.menu) {
+            const freshDataStr = JSON.stringify(data.menu);
+            if (freshDataStr !== cachedMenu) {
+                sessionStorage.setItem('sidebar_menu', freshDataStr);
+                renderMenu(data.menu);
+            }
+        }
+    } catch (e) {
+        if (!cachedMenu) {
+            menuContainer.innerHTML = '<div class="menu-loading">Lỗi tải menu</div>';
+        }
+    }
+}
+
+function navigateToModule(name, modulePath, clickedEl) {
+    document.querySelectorAll('.menu-group-header.active, .menu-sub-item.active').forEach(el => {
+        el.classList.remove('active');
+    });
+    clickedEl.classList.add('active');
+
+    const breadcrumb = document.getElementById('current-page-title');
+    if (breadcrumb) breadcrumb.textContent = name;
+
+    const moduleToPage = {
+        'PagesKDE.SanPham': '/page/sanpham',
+        'PagesKDE.DatHang': '/page/dathang',
+        'PagesKDE.EmailImport': '/page/nhanemail',
+        'PagesKDE.TonBon': '/page/tonbon',
+        'PagesKDE.Batching': '/page/batching',
+        'PagesKDE.BaoBi': '/page/baobi',
+        'PagesKDE.PackingPlan': '/page/packingplan',
+        'PagesKDE.Pellet': '/page/pellet',
+        'PagesKDE.StockOld': '/page/stockold',
+        'PagesKDE.Packing': '/page/packing',
+        'PagesKDE.Sale': '/page/sale',
+        'PagesKDE.Plan': '/page/plan',
+        'PagesKDE.StockHomNay': '/page/stockhomnay',
+        'PagesKDE.LichThang': '/page/lichthang',
+        'PagesKDE.GhiChu': '/page/ghichu',
+        'Admin.TaoBang': '/admin/tables',
+        'Admin.Users': '/admin/users',
+        'Admin.VaiTro': '/admin/roles',
+        'Admin.Settings': '/admin/settings',
+    };
 
     if (modulePath && moduleToPage[modulePath]) {
         window.location.href = moduleToPage[modulePath];
     } else if (modulePath) {
-        // Module chưa được migrate sang Flask
         const content = document.getElementById('page-content');
         if (content) {
             content.innerHTML = `

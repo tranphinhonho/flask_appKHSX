@@ -19,14 +19,21 @@
         <div class="form-row" style="align-items:flex-end;margin-bottom:16px">
             <div class="form-field" style="flex:1">
                 <label>📅 Ngày kế hoạch</label>
-                <input type="date" id="auto-ngay">
+                <input type="date" id="auto-ngay" onchange="autoLoadPlan()">
             </div>
             <div class="form-field" style="flex:1">
-                <label><input type="checkbox" id="skip-sunday" checked> Không SX Chủ nhật</label>
+                <label><input type="checkbox" id="skip-sunday" checked onchange="autoLoadPlan()"> Không SX Chủ nhật</label>
             </div>
-            <div class="form-field" style="flex:1;text-align:center;padding:8px;background:#e3f2fd;border-radius:6px">
-                <div class="text-muted" style="font-size:11px">Công suất tối đa</div>
-                <div style="font-size:16px;font-weight:bold">2,100,000 Kg</div>
+            <div class="form-field" style="flex:1.5;text-align:center;padding:8px;background:#e3f2fd;border-radius:6px;display:flex;gap:12px;justify-content:center;align-items:center">
+                <div>
+                    <div class="text-muted" style="font-size:10px">Tối thiểu (Min)</div>
+                    <div style="font-size:14px;font-weight:bold;color:#457b9d">2,100,000 Kg</div>
+                </div>
+                <div style="width:1px;height:24px;background:#a8dadc"></div>
+                <div>
+                    <div class="text-muted" style="font-size:10px">Tối đa (Max)</div>
+                    <div style="font-size:14px;font-weight:bold;color:#e63946">2,500,000 Kg</div>
+                </div>
             </div>
             <div class="form-field">
                 <button class="btn btn-primary" onclick="calculatePlan()">🔄 Tính toán</button>
@@ -148,6 +155,9 @@
         if (prods?.data) _products = prods.data;
 
         addPlanRow();
+
+        // Tự động tải kế hoạch đã lưu (nếu có) khi vừa vào trang
+        autoLoadPlan();
     }
 
     function _prodOpts() {
@@ -155,19 +165,43 @@
             _products.map(p => `<option value="${p.ID}">${p['Code cám']} | ${p['Tên cám']}</option>`).join('');
     }
 
-    // ==================== Auto Calculate ====================
-    async function calculatePlan() {
+    // ==================== Auto Calculate / Load Saved ====================
+    function autoLoadPlan() {
+        loadPlanData(true);
+    }
+
+    function calculatePlan() {
+        loadPlanData(false);
+    }
+
+    async function loadPlanData(onlySaved) {
         const ngay = document.getElementById('auto-ngay').value;
         if (!ngay) { showToast('Chọn ngày', 'warning'); return; }
 
-        document.getElementById('auto-result').innerHTML = '<p class="text-muted">Đang tính toán...</p>';
+        if (onlySaved) {
+            document.getElementById('auto-result').innerHTML = '<p class="text-muted"><i class="bi bi-hourglass-split"></i> Đang tìm kế hoạch đã lưu cho ngày này...</p>';
+        } else {
+            document.getElementById('auto-result').innerHTML = '<p class="text-muted"><i class="bi bi-cpu"></i> Đang chạy thuật toán tính toán kế hoạch tối ưu...</p>';
+        }
+
         const r = await api.post('/api/plan/calculate', {
-            ngay, skip_sunday: document.getElementById('skip-sunday').checked
+            ngay, 
+            skip_sunday: document.getElementById('skip-sunday').checked,
+            only_saved: onlySaved
         });
 
         if (!r?.success || !r.danh_sach?.length) {
-            document.getElementById('auto-result').innerHTML =
-                `<div style="padding:8px;background:#fff3cd;border-radius:4px">⚠️ ${r?.message || 'Không có dữ liệu'}</div>`;
+            if (onlySaved) {
+                document.getElementById('auto-result').innerHTML = `
+                    <div style="padding:20px;background:#fff3cd;border:1px solid #ffeeba;border-radius:8px;text-align:center;margin-top:10px">
+                        <h4 style="color:#856404;margin-bottom:8px"><i class="bi bi-exclamation-triangle-fill"></i> Chưa có Kế hoạch được lưu</h4>
+                        <p class="text-muted" style="font-size:13px;margin-bottom:16px">${r?.message || 'Chưa có kế hoạch cho ngày này trong hệ thống.'}</p>
+                        <button class="btn btn-primary" onclick="calculatePlan()"><i class="bi bi-calculator"></i> Bấm để Tính toán Kế hoạch Tự động</button>
+                    </div>`;
+            } else {
+                document.getElementById('auto-result').innerHTML =
+                    `<div style="padding:12px;background:#f8d7da;color:#721c24;border-radius:6px;border:1px solid #f5c6cb;margin-top:10px">⚠️ Lỗi tính toán: ${r?.message || 'Không có dữ liệu đầu vào hoặc lỗi hệ thống'}</div>`;
+            }
             _calcData = null;
             return;
         }
@@ -179,7 +213,10 @@
         const barColor = pct > 105 ? '#dc3545' : (pct > 100 ? '#ffc107' : '#28a745');
         const statusMsg = pct > 105 ? '🚨 VƯỢT CÔNG SUẤT!' : (pct > 100 ? '⚠️ Vượt chuẩn' : '✅ Trong giới hạn');
 
-        let html = `<h4>📅 Kế hoạch: ${r.ngay_display} (${r.loai === 'manual' ? 'Thủ công' : 'Tự động'})</h4>`;
+        let html = `<div style="display:flex;justify-content:space-between;align-items:center;margin-top:15px;margin-bottom:12px">
+            <h4 style="margin:0"><i class="bi bi-check-circle-fill" style="color:#28a745"></i> Kế hoạch: ${r.ngay_display} (${r.loai === 'manual' ? 'Đã lưu trong DB' : 'Tính toán tự động'})</h4>
+            ${r.loai === 'manual' ? `<button class="btn btn-warning btn-sm" onclick="calculatePlan()"><i class="bi bi-arrow-repeat"></i> Tính toán lại</button>` : ''}
+        </div>`;
 
         // Metrics
         html += `<div style="display:flex;gap:12px;margin-bottom:12px">
@@ -219,10 +256,16 @@
         });
         html += '</tbody></table></div>';
 
-        html += `<button class="btn btn-primary" onclick="saveCalculated()" style="width:100%;margin-top:12px">
-            💾 Lưu Kế hoạch vào Database
-        </button>
-        <div id="save-result" style="margin-top:8px"></div>`;
+        if (r.loai === 'auto') {
+            html += `<button class="btn btn-primary" onclick="saveCalculated()" style="width:100%;margin-top:12px">
+                💾 Lưu Kế hoạch vào Database
+            </button>
+            <div id="save-result" style="margin-top:8px"></div>`;
+        } else {
+            html += `<div style="padding:8px;background:#d4edda;color:#155724;border-radius:6px;border:1px solid #c3e6cb;margin-top:12px;text-align:center;font-size:12px">
+                <i class="bi bi-info-circle-fill"></i> Đây là kế hoạch đã được lưu trong cơ sở dữ liệu (Mã plan: ${r.ma_plan || 'N/A'})
+            </div>`;
+        }
 
         document.getElementById('auto-result').innerHTML = html;
     }
@@ -234,9 +277,11 @@
         });
         if (r?.success) {
             document.getElementById('save-result').innerHTML =
-                `<div style="padding:8px;background:#d4edda;border-radius:4px">✅ ${r.message}</div>`;
+                `<div style="padding:8px;background:#d4edda;border-radius:4px">✅ Đã lưu thành công! Đang tải lại...</div>`;
             showToast(r.message, 'success');
-            _calcData = null;
+            setTimeout(() => {
+                autoLoadPlan();
+            }, 1000);
         }
     }
 
