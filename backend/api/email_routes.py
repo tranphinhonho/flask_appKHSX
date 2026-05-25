@@ -12,6 +12,16 @@ import glob
 email_bp = Blueprint('email', __name__)
 
 
+@email_bp.route('/api/email/check-platform', methods=['GET'])
+@login_required
+def check_platform():
+    """Check if server is running on Windows (needed for Outlook COM)"""
+    import platform
+    is_windows = platform.system() == 'Windows'
+    return jsonify({'is_windows': is_windows, 'platform': platform.system()})
+
+
+
 def _setup_utils_path():
     """Ensure utils directory is in sys.path"""
     api_dir = os.path.dirname(os.path.abspath(__file__))

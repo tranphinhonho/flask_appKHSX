@@ -9,7 +9,7 @@
 <div class="tab-nav">
     <button class="tab-btn active" onclick="switchEmailTab(event,'tab-files')">📁 Files trong EXCEL</button>
     <button class="tab-btn" onclick="switchEmailTab(event,'tab-upload')">📤 Upload file</button>
-    <button class="tab-btn" onclick="switchEmailTab(event,'tab-outlook')">📧 Nhận từ Outlook</button>
+    <button class="tab-btn" id="btn-tab-outlook" onclick="switchEmailTab(event,'tab-outlook')" style="display:none">📧 Nhận từ Outlook</button>
     <button class="tab-btn" onclick="switchEmailTab(event,'tab-history')">📋 Lịch sử import</button>
 </div>
 
@@ -69,31 +69,36 @@
     </div>
 </div>
 
-<!-- Tab 3: Outlook -->
+<!-- Tab 3: Outlook (chỉ hiển thị trên Windows) -->
 <div class="tab-content" id="tab-outlook">
     <div class="form-section">
         <h3><i class="bi bi-envelope"></i> Kiểm tra email Outlook</h3>
         <p class="text-muted">Kết nối Outlook để tìm email có file FFSTOCK / BAG REPORT</p>
-
-        <div class="form-row" style="align-items:flex-end">
-            <div class="form-field" style="flex:1">
-                <label>Tìm email trong</label>
-                <select id="outlook-days">
-                    <option value="2">2 ngày</option>
-                    <option value="4" selected>4 ngày</option>
-                    <option value="7">7 ngày</option>
-                    <option value="14">14 ngày</option>
-                    <option value="30">30 ngày</option>
-                </select>
-            </div>
-            <div class="form-field">
-                <button class="btn btn-primary" onclick="checkOutlookEmails()">
-                    <i class="bi bi-search"></i> Kiểm tra email mới
-                </button>
-            </div>
+        <div id="outlook-not-available" style="display:none;padding:16px;background:#fff3cd;border-radius:8px;margin-bottom:16px">
+            ⚠️ Tính năng Outlook chỉ khả dụng khi chạy trên Windows (local). Trên server production, hãy dùng <strong>Upload file</strong> để import.
         </div>
-        <div id="outlook-status" style="margin-top:12px"></div>
-        <div id="outlook-emails" style="margin-top:16px"></div>
+
+        <div id="outlook-controls">
+            <div class="form-row" style="align-items:flex-end">
+                <div class="form-field" style="flex:1">
+                    <label>Tìm email trong</label>
+                    <select id="outlook-days">
+                        <option value="2">2 ngày</option>
+                        <option value="4" selected>4 ngày</option>
+                        <option value="7">7 ngày</option>
+                        <option value="14">14 ngày</option>
+                        <option value="30">30 ngày</option>
+                    </select>
+                </div>
+                <div class="form-field">
+                    <button class="btn btn-primary" onclick="checkOutlookEmails()">
+                        <i class="bi bi-search"></i> Kiểm tra email mới
+                    </button>
+                </div>
+            </div>
+            <div id="outlook-status" style="margin-top:12px"></div>
+            <div id="outlook-emails" style="margin-top:16px"></div>
+        </div>
     </div>
 </div>
 
@@ -390,5 +395,24 @@
 
     // Auto scan on load
     scanExcelFiles();
+
+    // Check if Outlook is available (Windows only)
+    (async function checkOutlookAvailability() {
+        try {
+            const result = await api.get('/api/email/check-platform');
+            if (result && result.is_windows) {
+                document.getElementById('btn-tab-outlook').style.display = '';
+            } else {
+                // Show tab button but mark as unavailable
+                document.getElementById('btn-tab-outlook').style.display = '';
+                document.getElementById('btn-tab-outlook').innerHTML = '📧 Nhận từ Outlook <span style="font-size:10px;color:#999">(Windows)</span>';
+                document.getElementById('outlook-not-available').style.display = 'block';
+                document.getElementById('outlook-controls').style.display = 'none';
+            }
+        } catch(e) {
+            // Fallback: show tab anyway
+            document.getElementById('btn-tab-outlook').style.display = '';
+        }
+    })();
 </script>
 {% endblock %}
