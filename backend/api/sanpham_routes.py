@@ -5,6 +5,7 @@ from flask import Blueprint, request, jsonify, session
 from backend.auth import login_required
 from backend import db
 from backend.utils import get_vietnam_time
+from backend.sanpham_backup import backup_sanpham
 import pandas as pd
 
 sanpham_bp = Blueprint('sanpham', __name__)
@@ -108,6 +109,9 @@ def add_sanpham():
         now
     ]
 
+    # Auto backup trước khi thêm
+    backup_sanpham(username, 'Thêm SP', f"Thêm: {data.get('Code cám', '')} - {data.get('Tên cám', '')}")
+
     result = db.insert_data_to_table('SanPham', columns, values)
     status_code = 200 if result.get('success') else 400
     return jsonify(result), status_code
@@ -133,6 +137,9 @@ def update_sanpham(id):
     if not update_data:
         return jsonify({"success": False, "message": "Không có dữ liệu để cập nhật"}), 400
 
+    # Auto backup trước khi sửa
+    backup_sanpham(username, 'Sửa SP', f"Sửa ID={id}")
+
     result = db.update_data_by_id('SanPham', id, update_data, username)
     status_code = 200 if result.get('success') else 400
     return jsonify(result), status_code
@@ -149,6 +156,10 @@ def delete_sanpham():
         return jsonify({"success": False, "message": "Chưa chọn sản phẩm để xóa"}), 400
 
     username = session.get('username', '')
+
+    # Auto backup trước khi xóa
+    backup_sanpham(username, 'Xóa SP', f"Xóa {len(ids)} SP: {ids}")
+
     result = db.delete_data_by_ids('SanPham', ids, username)
     status_code = 200 if result.get('success') else 400
     return jsonify(result), status_code
@@ -180,6 +191,10 @@ def import_sanpham():
         df = pd.read_excel(file, dtype=dtype)
 
         username = session.get('username', '')
+
+        # Auto backup trước khi import
+        backup_sanpham(username, 'Import SP', f"Import từ file: {file.filename}")
+
         result = db.insert_dataframe_to_table(
             'SanPham',
             df,
@@ -191,3 +206,39 @@ def import_sanpham():
 
     except Exception as e:
         return jsonify({"success": False, "message": f"Lỗi đọc file: {str(e)}"}), 400
+
+
+# ==================== Backup Management ====================
+
+@sanpham_bp.route('/api/sanpham/backups', methods=['GET'])
+@login_required
+def get_backup_list_api():
+    """Lấy danh sách các bản backup SanPham"""
+    from backend.sanpham_backup import get_backup_list
+    backups = get_backup_list()
+    return jsonify({"success": True, "backups": backups})
+
+
+@sanpham_bp.route('/api/sanpham/backups/<int:backup_id>', methods=['GET'])
+@login_required
+def get_backup_detail(backup_id):
+    """Lấy dữ liệu chi tiết của bản backup"""
+    from backend.sanpham_backup import get_backup_data
+    data = get_backup_data(backup_id)
+    if data is None:
+        return jsonify({"success": False, "message": "Không tìm thấy backup"}), 404
+    return jsonify({"success": True, "data": data, "count": len(data)})
+
+
+@sanpham_bp.route('/api/sanpham/backups/<int:backup_id>/restore', methods=['POST'])
+@login_required
+def restore_backup_api(backup_id):
+    """Khôi phục SanPham từ bản backup"""
+    username = session.get('username', '')
+    if username not in ['phinho', 'kde', 'admin']:
+        return jsonify({"success": False, "message": "Chỉ admin mới được khôi phục backup"}), 403
+
+    from backend.sanpham_backup import restore_backup
+    result = restore_backup(backup_id, username)
+    status_code = 200 if result.get('success') else 400
+    return jsonify(result), status_code
