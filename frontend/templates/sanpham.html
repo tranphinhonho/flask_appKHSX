@@ -100,6 +100,36 @@
     <div id="sanpham-table"></div>
 </div>
 
+<!-- Backup Management -->
+<div class="form-section">
+    <div style="display:flex;justify-content:space-between;align-items:center;cursor:pointer" onclick="toggleBackupSection()">
+        <h3 style="margin:0"><i class="bi bi-clock-history"></i> 3. Lịch sử backup sản phẩm</h3>
+        <span id="backup-toggle-icon" style="font-size:20px;transition:transform .2s">▼</span>
+    </div>
+    <div id="backup-section" style="display:none;margin-top:16px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+            <p class="text-muted" style="margin:0;font-size:13px">
+                <i class="bi bi-info-circle"></i> Hệ thống tự động backup trước mỗi thay đổi (thêm/sửa/xóa/import)
+            </p>
+            <button class="btn btn-secondary btn-sm" onclick="loadBackups()">
+                <i class="bi bi-arrow-clockwise"></i> Làm mới
+            </button>
+        </div>
+        <div id="backup-list">
+            <p class="text-muted">Nhấn "Làm mới" để tải danh sách backup...</p>
+        </div>
+    </div>
+</div>
+
+<!-- Backup Detail Modal -->
+<div id="backup-modal" style="display:none;position:fixed;inset:0;z-index:999;background:rgba(0,0,0,.5);padding:32px;overflow:auto">
+    <div style="max-width:960px;margin:auto;background:white;border-radius:12px;padding:24px;position:relative">
+        <button onclick="closeBackupModal()" style="position:absolute;top:12px;right:16px;border:none;background:none;font-size:20px;cursor:pointer">✕</button>
+        <h4 id="backup-modal-title">Chi tiết backup</h4>
+        <div id="backup-modal-content" style="max-height:500px;overflow:auto"></div>
+    </div>
+</div>
+
 {% endblock %}
 
 {% block scripts %}
@@ -200,6 +230,104 @@
         }
 
         input.value = ''; // Reset file input
+    }
+
+    // ==================== BACKUP ====================
+    let backupSectionOpen = false;
+
+    function toggleBackupSection() {
+        backupSectionOpen = !backupSectionOpen;
+        document.getElementById('backup-section').style.display = backupSectionOpen ? 'block' : 'none';
+        document.getElementById('backup-toggle-icon').style.transform = backupSectionOpen ? 'rotate(180deg)' : '';
+        if (backupSectionOpen) loadBackups();
+    }
+
+    async function loadBackups() {
+        const container = document.getElementById('backup-list');
+        container.innerHTML = '<p class="text-muted">Đang tải...</p>';
+
+        const result = await api.get('/api/sanpham/backups');
+        if (!result || !result.success || !result.backups || result.backups.length === 0) {
+            container.innerHTML = '<p class="text-muted">Chưa có bản backup nào</p>';
+            return;
+        }
+
+        let html = '<table class="data-table" style="font-size:12px"><thead><tr>';
+        ['#', 'Thời gian', 'Người thực hiện', 'Hành động', 'Số SP', 'Ghi chú', ''].forEach(c => html += `<th>${c}</th>`);
+        html += '</tr></thead><tbody>';
+
+        result.backups.forEach(b => {
+            const actionColor = {
+                'Thêm SP': '#28a745', 'Sửa SP': '#ffc107', 'Xóa SP': '#dc3545',
+                'Import SP': '#17a2b8', 'Trước khôi phục': '#6f42c1'
+            }[b['Hành động']] || '#6c757d';
+
+            html += `<tr>
+                <td>${b.ID}</td>
+                <td style="white-space:nowrap">${b['Thời gian']}</td>
+                <td>${b['Người thực hiện']}</td>
+                <td><span style="padding:2px 8px;border-radius:4px;background:${actionColor};color:white;font-size:11px">${b['Hành động']}</span></td>
+                <td style="text-align:center">${b['Số lượng SP']}</td>
+                <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${b['Ghi chú']}">${b['Ghi chú']}</td>
+                <td style="white-space:nowrap">
+                    <button class="btn btn-secondary btn-sm" onclick="viewBackup(${b.ID})" title="Xem chi tiết">
+                        <i class="bi bi-eye"></i>
+                    </button>
+                    <button class="btn btn-primary btn-sm" onclick="restoreBackup(${b.ID}, '${b['Thời gian']}', ${b['Số lượng SP']})" title="Khôi phục">
+                        <i class="bi bi-arrow-counterclockwise"></i>
+                    </button>
+                </td>
+            </tr>`;
+        });
+
+        html += '</tbody></table>';
+        container.innerHTML = html;
+    }
+
+    async function viewBackup(id) {
+        document.getElementById('backup-modal').style.display = 'block';
+        document.getElementById('backup-modal-title').textContent = `Chi tiết backup #${id}`;
+        document.getElementById('backup-modal-content').innerHTML = '<p class="text-muted">Đang tải...</p>';
+
+        const result = await api.get(`/api/sanpham/backups/${id}`);
+        if (!result || !result.success || !result.data) {
+            document.getElementById('backup-modal-content').innerHTML = '<p style="color:red">Không tải được dữ liệu</p>';
+            return;
+        }
+
+        const data = result.data;
+        const displayCols = ['Code cám', 'Tên cám', 'Kích cỡ ép viên', 'Dạng ép viên', 'Kích cỡ đóng bao', 'Pellet', 'Packing', 'Batch size', 'Vật nuôi'];
+
+        let html = `<p class="text-muted" style="font-size:12px">Tổng: <strong>${data.length}</strong> sản phẩm</p>`;
+        html += '<table class="data-table" style="font-size:11px"><thead><tr>';
+        displayCols.forEach(c => html += `<th>${c}</th>`);
+        html += '</tr></thead><tbody>';
+
+        data.forEach(row => {
+            html += '<tr>';
+            displayCols.forEach(c => html += `<td>${row[c] ?? ''}</td>`);
+            html += '</tr>';
+        });
+
+        html += '</tbody></table>';
+        document.getElementById('backup-modal-content').innerHTML = html;
+    }
+
+    function closeBackupModal() {
+        document.getElementById('backup-modal').style.display = 'none';
+    }
+
+    async function restoreBackup(id, time, count) {
+        if (!confirm(`⚠️ Khôi phục ${count} sản phẩm từ backup lúc ${time}?\n\nDữ liệu hiện tại sẽ được backup trước khi khôi phục.`)) return;
+
+        const result = await api.post(`/api/sanpham/backups/${id}/restore`);
+        if (result && result.success) {
+            showToast(result.message, 'success');
+            dt.loadData();
+            loadBackups();
+        } else {
+            showToast(result?.message || 'Lỗi khôi phục', 'error');
+        }
     }
 </script>
 {% endblock %}
