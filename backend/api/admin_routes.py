@@ -33,13 +33,13 @@ def get_stats():
 
         # Số sản phẩm
         try:
-            stats['products'] = db.get_total_count('tbdat_SanPham', col_where={'Đã xóa': ('=', 0)})
+            stats['products'] = db.get_total_count('SanPham', col_where={'Đã xóa': ('=', 0)})
         except:
             stats['products'] = 0
 
         # Số đơn hàng
         try:
-            stats['orders'] = db.get_total_count('tbdat_DatHang', col_where={'Đã xóa': ('=', 0)})
+            stats['orders'] = db.get_total_count('DatHang', col_where={'Đã xóa': ('=', 0)})
         except:
             stats['orders'] = 0
 
@@ -55,15 +55,15 @@ def get_stats():
         except:
             stats['roles'] = 0
 
-        # Số batching
+        # Số batching (bảng Mixer)
         try:
-            stats['batching'] = db.get_total_count('tbdat_Batching', col_where={'Đã xóa': ('=', 0)})
+            stats['batching'] = db.get_total_count('Mixer', col_where={'Đã xóa': ('=', 0)})
         except:
             stats['batching'] = 0
 
         # Số stock
         try:
-            stats['stock'] = db.get_total_count('tbdat_StockHomNay', col_where={'Đã xóa': ('=', 0)})
+            stats['stock'] = db.get_total_count('StockHomNay', col_where={'Đã xóa': ('=', 0)})
         except:
             stats['stock'] = 0
 
